@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Змейка</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a0a0a;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+'use strict';
+
+// ── constants ─────────────────────────────────────────────
+const VERSION        = '1.07';
+const CELL           = 20;
+const COLS           = 30;
+const ROWS           = 25;
+const FIELD_W        = COLS * CELL;   // 600
+const FIELD_H        = ROWS * CELL;   // 500
+const PANEL_TOP      = 52;
+const PANEL_BOTTOM   = 32;
+const WIN_W          = FIELD_W;       // 600
+const WIN_H          = PANEL_TOP + FIELD_H + PANEL_BOTTOM; // 584
+const GAME_Y         = PANEL_TOP;     // 52
+const SPEED_INIT     = 2.5;
+const SPEED_MAX      = 22;
+const STATUS_DUR     = 2500;
+const ORANGE_DUR     = 3000;
+
+// ── canvas ────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+canvas.width  = WIN_W;
+canvas.height = WIN_H;
+const ctx = canvas.getContext('2d');
+
+// ── game state ────────────────────────────────────────────
+let state = 'start'; // 'start' | 'playing' | 'gameover'
+let snake, direction, nextDir, food, orangePos, cakes;
+let score, applesEaten, growPending, nextOrangeAt, nextCakeAt;
+let speed, status, orangeEffectStart, lastTickMs, paused, pauseMs;
+let blinkOn = true, blinkLast = 0;
+
+// ── helpers ───────────────────────────────────────────────
+const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const eq = (a, b)  => a[0] === b[0] && a[1] === b[1];
+
+function randomFood(occupied) {
+  const set = new Set(occupied.map(p => p[0] + ',' + p[1]));
+  let x, y;
+  do { x = ri(0, COLS - 1); y = ri(0, ROWS - 1); } while (set.has(x + ',' + y));
+  return [x, y];
+}
+
+// ── input ─────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (state === 'start') {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); startGame(); }
+    return;
+  }
+  if (state === 'gameover') {
+    if (e.key === 'r' || e.key === 'R' || e.key === 'Enter') { e.preventDefault(); startGame(); }
+    if (e.key === 'q' || e.key === 'Q' || e.key === 'Escape') { e.preventDefault(); state = 'start'; }
+    return;
+  }
+  if (state === 'playing') {
+    e.preventDefault();
+    const [dx, dy] = direction;
+    if ((e.key === 'ArrowUp'    || e.key === 'w' || e.key === 'W') && dy !==  1) nextDir = [ 0, -1];
+    if ((e.key === 'ArrowDown'  || e.key === 's' || e.key === 'S') && dy !== -1) nextDir = [ 0,  1];
+    if ((e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') && dx !==  1) nextDir = [-1,  0];
+    if ((e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') && dx !== -1) nextDir = [ 1,  0];
+    if (e.key === ' ') {
+      const now = performance.now();
+      paused = !paused;
+      if (paused) pauseMs = now;
+      else         lastTickMs = now; // сброс: без рывка при возобновлении
+    }
+  }
+});
+
+// ── game init ─────────────────────────────────────────────
+function startGame() {
+  state            = 'playing';
+  snake            = [[COLS >> 1, ROWS >> 1]];
+  direction        = [1, 0];
+  nextDir          = [1, 0];
+  food             = randomFood(snake);
+  orangePos        = null;
+  cakes            = [];
+  score            = 0;
+  applesEaten      = 0;
+  growPending      = 0;
+  nextOrangeAt     = ri(2, 4);
+  nextCakeAt       = ri(5, 9);
+  speed            = SPEED_INIT;
+  status           = null;
+  orangeEffectStart = null;
+  lastTickMs       = performance.now();
+  paused           = false;
+  pauseMs          = 0;
+}
+
+// ── draw primitives ───────────────────────────────────────
+function rRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);   ctx.arcTo(x + w, y,     x + w, y + r,     r);
+  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);   ctx.arcTo(x,     y + h, x,     y + h - r, r);
+  ctx.lineTo(x, y + r);       ctx.arcTo(x,     y,     x + r, y,         r);
+  ctx.closePath();
+}
+
+function drawBox(x, y, w, h) {
+  rRect(x, y, w, h, 5);
+  ctx.fillStyle   = 'rgb(28,28,28)'; ctx.fill();
+  ctx.strokeStyle = 'rgb(90,90,90)'; ctx.lineWidth = 1; ctx.stroke();
+}
+
+function drawGrid() {
+  ctx.strokeStyle = 'rgb(40,40,40)'; ctx.lineWidth = 1;
+  for (let x = 0; x < FIELD_W; x += CELL) {
+    ctx.beginPath(); ctx.moveTo(x, GAME_Y); ctx.lineTo(x, GAME_Y + FIELD_H); ctx.stroke();
+  }
+  for (let y = 0; y < FIELD_H; y += CELL) {
+    ctx.beginPath(); ctx.moveTo(0, GAME_Y + y); ctx.lineTo(FIELD_W, GAME_Y + y); ctx.stroke();
+  }
+}
+
+function drawSnake() {
+  for (let i = 0; i < snake.length; i++) {
+    const [cx, cy] = snake[i];
+    rRect(cx * CELL + 1, GAME_Y + cy * CELL + 1, CELL - 2, CELL - 2, 4);
+    ctx.fillStyle = i === 0 ? 'rgb(0,140,0)' : 'rgb(0,200,0)';
+    ctx.fill();
+  }
+}
+
+function drawEll(cx, cy, color) {
+  ctx.beginPath();
+  ctx.ellipse(cx * CELL + CELL / 2, GAME_Y + cy * CELL + CELL / 2,
+              (CELL - 4) / 2, (CELL - 4) / 2, 0, 0, Math.PI * 2);
+  ctx.fillStyle = color; ctx.fill();
+}
+
+// ── status animation ──────────────────────────────────────
+function lerp3(dark, base, p) {
+  if (p <= 0.5) {
+    const t = p * 2;
+    return [dark[0] + (base[0] - dark[0]) * t,
+            dark[1] + (base[1] - dark[1]) * t,
+            dark[2] + (base[2] - dark[2]) * t];
+  }
+  const t = (p - 0.5) * 2;
+  return [base[0] + (255 - base[0]) * t,
+          base[1] + (255 - base[1]) * t,
+          base[2] + (255 - base[2]) * t];
+}
+
+function drawStatusAnim(cx, cy, elapsed, text, base) {
+  if (elapsed >= STATUS_DUR) return;
+  const dark = [base[0] / 4, base[1] / 4, base[2] / 4];
+  let scale, col, alpha;
+
+  if (elapsed < 500) {
+    const p = elapsed / 500;
+    scale = 0.4 + 0.6 * p;
+    col   = lerp3(dark, base, p);
+    alpha = 1;
+  } else if (elapsed < 1500) {
+    const p   = (elapsed - 500) / 1000;
+    const osc = (Math.sin(p * Math.PI * 5) + 1) / 2;
+    scale = 1;
+    col   = lerp3(dark, base, 0.5 + 0.5 * osc);
+    alpha = 1;
+  } else {
+    const p = (elapsed - 1500) / 1000;
+    const k = 1 - p;
+    scale = 1;
+    col   = lerp3(dark, base, k);
+    alpha = k;
+    if (alpha < 5 / 255) return;
+  }
+
+  const [r, g, b] = col.map(Math.round);
+  ctx.save();
+  ctx.globalAlpha   = alpha;
+  ctx.font          = `bold ${Math.round(22 * scale)}px Arial`;
+  ctx.fillStyle     = `rgb(${r},${g},${b})`;
+  ctx.textBaseline  = 'middle';
+  ctx.textAlign     = 'center';
+  ctx.fillText(text, cx, cy);
+  ctx.restore();
+}
+
+// ── HUD ───────────────────────────────────────────────────
+function drawHUD(now) {
+  const eff = orangeEffectStart !== null ? speed * 2 / 3 : speed;
+
+  // top panel background + separator
+  ctx.fillStyle = 'rgb(18,18,18)';
+  ctx.fillRect(0, 0, WIN_W, PANEL_TOP);
+  ctx.strokeStyle = 'rgb(90,90,90)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, PANEL_TOP - 1); ctx.lineTo(WIN_W, PANEL_TOP - 1); ctx.stroke();
+
+  const bh = PANEL_TOP - 14; // 38
+  const by = 7;
+
+  // score box (left)
+  ctx.font = 'bold 22px Arial';
+  const sTxt = `Счёт:  ${score}`;
+  const bw1  = ctx.measureText(sTxt).width + 22;
+  drawBox(8, by, bw1, bh);
+  ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.fillText(sTxt, 19, by + bh / 2);
+
+  // speed box (right)
+  ctx.font = '13px Arial';
+  const spTxt = `Скорость:  ${eff.toFixed(1)} fps`;
+  const bw2   = ctx.measureText(spTxt).width + 22;
+  const bx2   = WIN_W - bw2 - 8;
+  drawBox(bx2, by, bw2, bh);
+  if (orangeEffectStart !== null) {
+    const rem    = Math.max(0, ORANGE_DUR - (now - orangeEffectStart));
+    const tmrTxt = `${Math.round(rem)} мс`;
+    const mid    = by + bh / 2;
+    ctx.font = '13px Arial';
+    ctx.fillStyle = '#fff'; ctx.textBaseline = 'bottom'; ctx.textAlign = 'left';
+    ctx.fillText(spTxt, bx2 + 11, mid - 1);
+    ctx.fillStyle = 'rgb(255,190,0)'; ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+    ctx.fillText(tmrTxt, bx2 + bw2 / 2, mid + 1);
+  } else {
+    ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.fillText(spTxt, bx2 + 11, by + bh / 2);
+  }
+
+  // status box (center)
+  let stW;
+  if (status !== null) {
+    ctx.font = 'bold 22px Arial';
+    stW = ctx.measureText(status.text).width + 28;
+  } else {
+    stW = 120;
+  }
+  const stX = (WIN_W - stW) / 2;
+  drawBox(stX, by, stW, bh);
+  if (status !== null) {
+    drawStatusAnim(stX + stW / 2, by + bh / 2, now - status.start, status.text, status.color);
+  }
+
+  // bottom panel
+  ctx.fillStyle = 'rgb(18,18,18)';
+  ctx.fillRect(0, GAME_Y + FIELD_H, WIN_W, PANEL_BOTTOM);
+  ctx.strokeStyle = 'rgb(90,90,90)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, GAME_Y + FIELD_H); ctx.lineTo(WIN_W, GAME_Y + FIELD_H); ctx.stroke();
+
+  ctx.font = '13px Arial';
+  const aTxt = `Змейка  •  Навайбкодил Лёша Карпич 5-б  •  версия ${VERSION}`;
+  const aW   = ctx.measureText(aTxt).width + 20;
+  const aH   = PANEL_BOTTOM - 8;
+  const aX   = (WIN_W - aW) / 2;
+  const aY   = GAME_Y + FIELD_H + 4;
+  drawBox(aX, aY, aW, aH);
+  ctx.fillStyle = 'rgb(90,90,90)'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.fillText(aTxt, aX + 10, aY + aH / 2);
+}
+
+// ── grayscale for pause ───────────────────────────────────
+function grayscale() {
+  const img = ctx.getImageData(0, 0, WIN_W, WIN_H);
+  const d   = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    d[i] = d[i + 1] = d[i + 2] = g;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// ── game logic ────────────────────────────────────────────
+function update(now) {
+  if (state !== 'playing' || paused) return;
+
+  // снять эффект апельсина по истечении
+  if (orangeEffectStart !== null && now - orangeEffectStart >= ORANGE_DUR)
+    orangeEffectStart = null;
+
+  const eff = orangeEffectStart !== null ? speed * 2 / 3 : speed;
+  if (now - lastTickMs < 1000 / eff) return;
+  lastTickMs = now;
+
+  direction = nextDir;
+  const hx = snake[0][0] + direction[0];
+  const hy = snake[0][1] + direction[1];
+
+  // стена или сама себя
+  if (hx < 0 || hx >= COLS || hy < 0 || hy >= ROWS || snake.some(s => eq(s, [hx, hy]))) {
+    state = 'gameover';
+    return;
+  }
+
+  const preLen = snake.length;
+  snake.unshift([hx, hy]);
+
+  if (eq([hx, hy], food)) {
+    // ── Яблоко ──────────────────────────────────────────
+    score++;
+    applesEaten++;
+    food  = randomFood([...snake, ...(orangePos ? [orangePos] : []), ...cakes]);
+    speed = Math.min(SPEED_INIT + score * 0.3, SPEED_MAX);
+    status = { start: now, text: 'Восторг!', color: [220, 40, 40] };
+    if (applesEaten === nextOrangeAt) {
+      orangePos    = randomFood([...snake, food, ...cakes]);
+      nextOrangeAt = applesEaten + ri(2, 4);
+    }
+    if (applesEaten === nextCakeAt) {
+      cakes.push(randomFood([...snake, food, ...(orangePos ? [orangePos] : []), ...cakes]));
+      nextCakeAt = applesEaten + ri(5, 9);
+    }
+    // хвост не удаляем → рост на 1
+
+  } else if (orangePos !== null && eq([hx, hy], orangePos)) {
+    // ── Апельсин ────────────────────────────────────────
+    score++;
+    orangePos         = null;
+    orangeEffectStart = now;
+    status = { start: now, text: 'Перевариваю!', color: [210, 150, 0] };
+    // хвост не удаляем → рост на 1
+
+  } else if (cakes.some(c => eq(c, [hx, hy]))) {
+    // ── Пирог ───────────────────────────────────────────
+    cakes       = cakes.filter(c => !eq(c, [hx, hy]));
+    score      *= 2;
+    growPending += Math.max(0, preLen - 1); // вырасти до 2×preLen
+    status = { start: now, text: 'Ой! Я съела нельзЮ..', color: [0, 190, 235] };
+
+  } else {
+    // ── Обычный ход ─────────────────────────────────────
+    if (growPending > 0) growPending--;
+    else                 snake.pop();
+  }
+}
+
+// ── render ────────────────────────────────────────────────
+function render(now) {
+  if (state === 'start') {
+    if (now - blinkLast >= 550) { blinkOn = !blinkOn; blinkLast = now; }
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, WIN_W, WIN_H);
+    drawGrid();
+    ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+    ctx.font = 'bold 48px Arial'; ctx.fillStyle = 'rgb(0,200,0)';
+    ctx.fillText('ЗМЕЙКА', WIN_W / 2, WIN_H / 2 - 70);
+    if (blinkOn) {
+      ctx.font = 'bold 22px Arial'; ctx.fillStyle = '#fff';
+      ctx.fillText('Нажмите ПРОБЕЛ для начала', WIN_W / 2, WIN_H / 2 + 20);
+    }
+    return;
+  }
+
+  if (state === 'gameover') {
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, WIN_W, WIN_H);
+    ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+    ctx.font = 'bold 48px Arial'; ctx.fillStyle = 'rgb(220,40,40)';
+    ctx.fillText('ИГРА ОКОНЧЕНА', WIN_W / 2, WIN_H / 2 - 70);
+    ctx.font = 'bold 22px Arial'; ctx.fillStyle = '#fff';
+    ctx.fillText(`Счёт: ${score}`, WIN_W / 2, WIN_H / 2);
+    ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(90,90,90)';
+    ctx.fillText('R — рестарт   Q — выход', WIN_W / 2, WIN_H / 2 + 46);
+    return;
+  }
+
+  // playing
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, WIN_W, WIN_H);
+  drawGrid();
+  drawEll(food[0], food[1], 'rgb(220,40,40)');
+  if (orangePos) drawEll(orangePos[0], orangePos[1], 'rgb(255,190,0)');
+  for (const [cx, cy] of cakes) drawEll(cx, cy, 'rgb(0,200,255)');
+  drawSnake();
+  drawHUD(now);
+
+  if (paused) {
+    grayscale();
+    const t  = (now - pauseMs) / 1000;
+    const k  = (Math.sin(t * Math.PI * 1.5) + 1) / 2; // ~0.75 Гц
+    const br = Math.round(130 + 125 * k);
+    ctx.font = 'bold 48px Arial';
+    ctx.fillStyle    = `rgb(${br},${br},${br})`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign    = 'center';
+    ctx.fillText('ПАУЗА', WIN_W / 2, WIN_H / 2);
+  }
+}
+
+// ── main loop ─────────────────────────────────────────────
+function loop(ts) {
+  update(ts);
+  render(ts);
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
