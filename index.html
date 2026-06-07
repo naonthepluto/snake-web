@@ -92,6 +92,16 @@ document.addEventListener('keydown', e => {
       if (paused) pauseMs = now;
       else         lastTickMs = now; // сброс: без рывка при возобновлении
     }
+    if ((e.key === 'x' || e.key === 'X') && !paused) {
+      const now = performance.now();
+      const shrinkBy = Math.max(0, Math.min(Math.floor(snake.length / 4), snake.length - 2));
+      if (shrinkBy > 0) {
+        const removed = snake.splice(snake.length - shrinkBy, shrinkBy);
+        shrinkAnim = { cells: removed, start: now };
+      }
+      score += 5;
+      status = { start: now, text: 'Разгрузочный день!', color: [160, 50, 220] };
+    }
   }
 });
 
@@ -347,7 +357,7 @@ function update(now) {
 
   } else if (orangePos !== null && eq([hx, hy], orangePos)) {
     // ── Апельсин ────────────────────────────────────────
-    score++;
+    score += 2;
     orangePos         = null;
     orangeEffectStart = now;
     targetSpeed = Math.min(targetSpeed + SPEED_STEP, SPEED_MAX);
@@ -357,6 +367,7 @@ function update(now) {
   } else if (cakes.some(c => eq(c, [hx, hy]))) {
     // ── Пирог ───────────────────────────────────────────
     cakes       = cakes.filter(c => !eq(c, [hx, hy]));
+    score      -= 5;
     growPending += Math.max(0, preLen - 1); // вырасти до 2×preLen
     targetSpeed = Math.min(targetSpeed + SPEED_STEP, SPEED_MAX);
     status = { start: now, text: 'Ой! Я съела нельзЮ..', color: [0, 190, 235] };
@@ -371,6 +382,7 @@ function update(now) {
       const removed = snake.splice(snake.length - shrinkBy, shrinkBy);
       shrinkAnim = { cells: removed, start: now };
     }
+    score += 5;
     status = { start: now, text: 'Разгрузочный день!', color: [160, 50, 220] };
 
   } else {
