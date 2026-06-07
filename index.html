@@ -113,7 +113,7 @@ canvas { display: block; touch-action: none; }
 'use strict';
 
 // ── constants ─────────────────────────────────────────────
-const VERSION        = '2.04';
+const VERSION        = '2.05';
 const CELL           = 20;
 const COLS           = 30;
 const ROWS           = 25;
@@ -197,11 +197,11 @@ const T = {
   },
 };
 
-const LB_W = 54, LB_H = 28, LB_GAP = 8;
+const LB_W = 120, LB_H = 46, LB_GAP = 16;
 const LB_RU_X = WIN_W / 2 - LB_W - LB_GAP / 2;
 const LB_EN_X = WIN_W / 2 + LB_GAP / 2;
 // button Y — two-column layout: title+gap+btns+gap+div+gap+MID(240)+gap+div+gap+prompt
-const _BLK_H  = 52 + 12 + LB_H + 12 + 1 + 14 + 240 + 14 + 1 + 12 + 24; // 410
+const _BLK_H  = 52 + 12 + LB_H + 12 + 1 + 14 + 240 + 14 + 1 + 12 + 24; // 428
 const LB_BTN_Y = Math.round((WIN_H - _BLK_H) / 2) + 52 + 12;
 
 // ── canvas ────────────────────────────────────────────────
@@ -728,10 +728,10 @@ function render(now) {
 
     // language buttons (centered)
     const drawLB = (x, label, active) => {
-      rRect(x, y, LB_W, LB_H, 6);
+      rRect(x, y, LB_W, LB_H, 10);
       ctx.fillStyle   = active ? 'rgb(0,120,0)'  : 'rgb(26,26,26)'; ctx.fill();
       ctx.strokeStyle = active ? 'rgb(0,200,0)'  : 'rgb(80,80,80)'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.font = 'bold 14px Arial'; ctx.fillStyle = active ? '#fff' : 'rgb(100,100,100)';
+      ctx.font = 'bold 18px Arial'; ctx.fillStyle = active ? '#fff' : 'rgb(100,100,100)';
       ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
       ctx.fillText(label, x + LB_W / 2, y + LB_H / 2);
     };
@@ -747,7 +747,7 @@ function render(now) {
     const midY = y;
 
     // ── Left col: food rules ──────────────────────────────
-    const dotR  = 7, rowH = 34;
+    const dotR  = 8, rowH = 38;
     const dotX  = LC_X + 16 + dotR;
     const textX = dotX + dotR + 8;
 
@@ -761,11 +761,11 @@ function render(now) {
       ctx.beginPath(); ctx.arc(dotX, ry, dotR, 0, Math.PI * 2);
       ctx.fillStyle = color; ctx.fill();
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-      ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#f0f0f0';
+      ctx.font = 'bold 15px Arial'; ctx.fillStyle = '#f0f0f0';
       const nameStr = name + ':';
       ctx.fillText(nameStr, textX, ry);
       const nw = ctx.measureText(nameStr).width;
-      ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(148,148,148)';
+      ctx.font = '14px Arial'; ctx.fillStyle = 'rgb(148,148,148)';
       ctx.fillText('  ' + desc, textX + nw, ry);
     }
 
@@ -773,8 +773,8 @@ function render(now) {
     const notesBoxX  = LC_X + 4;
     const notesBoxW  = LC_W - 6;
     const noteInnerW = notesBoxW - 18;
-    const noteLH = 15, notePad = 7;
-    ctx.font = '12px Arial';
+    const noteLH = 16, notePad = 8;
+    ctx.font = '13px Arial';
     const wrapLines = txt => {
       const words = txt.split(' '), lines = [];
       let line = '';
@@ -792,7 +792,7 @@ function render(now) {
     rRect(notesBoxX, notesY0, notesBoxW, notesBoxH, 6);
     ctx.fillStyle = 'rgb(20,20,20)'; ctx.fill();
     ctx.strokeStyle = 'rgb(55,55,55)'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.font = '12px Arial'; ctx.fillStyle = 'rgb(132,132,132)';
+    ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(132,132,132)';
     ctx.textBaseline = 'top'; ctx.textAlign = 'left';
     for (let i = 0; i < allLines.length; i++) {
       ctx.fillText(allLines[i], notesBoxX + 9, notesY0 + notePad + i * noteLH);
@@ -866,7 +866,7 @@ function render(now) {
     y += 1 + 12;
 
     if (blinkOn) {
-      ctx.font = 'bold 18px Arial'; ctx.fillStyle = '#e8e8e8';
+      ctx.font = 'bold 20px Arial'; ctx.fillStyle = '#e8e8e8';
       ctx.textBaseline = 'top'; ctx.textAlign = 'center';
       ctx.fillText(L.start, cx, y);
     }
