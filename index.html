@@ -39,7 +39,7 @@ const SPEED_STEP     = 0.2;
 const SPEED_LERP     = 3;   // ед/с — скорость плавного нарастания
 const STATUS_DUR     = 2500;
 const ORANGE_DUR     = 3000;
-const SHRINK_DUR     = 1000; // мс — анимация растворения клеток салата
+const CELL_DUR       = 350;  // мс на одну клетку хвоста при анимации салата
 
 // ── canvas ────────────────────────────────────────────────
 const canvas = document.getElementById('c');
@@ -431,30 +431,30 @@ function render(now) {
 
   if (shrinkAnim !== null) {
     const el = now - shrinkAnim.start;
-    if (el >= SHRINK_DUR) {
+    const cells = shrinkAnim.cells; // [ближний к новому хвосту, ..., старый конец]
+    const n = cells.length;
+    if (el >= n * CELL_DUR) {
       shrinkAnim = null;
     } else {
-      const cells = shrinkAnim.cells; // [ближний к новому хвосту, ..., старый конец]
-      const n = cells.length;
       for (let i = 0; i < n; i++) {
-        // i=n-1 — старый конец хвоста, стартует первым (delay=0)
-        // i=0   — ближний к новому хвосту, стартует последним
-        const delay = n > 1 ? ((n - 1 - i) / (n - 1)) * 400 : 0;
+        // каждая клетка стартует строго после предыдущей
+        // i=n-1 — старый конец хвоста (delay=0), i=0 — ближний к новому хвосту (delay=(n-1)*CELL_DUR)
+        const delay = (n - 1 - i) * CELL_DUR;
         const cel   = el - delay;
-        if (cel <= 0 || cel >= 600) continue;
+        if (cel < 0 || cel >= CELL_DUR) continue;
 
         let r, g, b, alpha;
-        if (cel < 80) {
+        if (cel < 60) {
           r = 255; g = 255; b = 255; alpha = 1;           // белая вспышка
-        } else if (cel < 200) {
-          const t = (cel - 80) / 120;                     // белый → зелёный
+        } else if (cel < 140) {
+          const t = (cel - 60) / 80;                      // белый → зелёный
           r = Math.round(255 * (1 - t));
           g = Math.round(255 * (1 - t) + 200 * t);
           b = Math.round(255 * (1 - t));
           alpha = 1;
         } else {
           r = 0; g = 200; b = 0;                          // зелёный → прозрачный
-          alpha = Math.max(0, 1 - (cel - 200) / 400);
+          alpha = Math.max(0, 1 - (cel - 140) / 210);
         }
         if (alpha <= 0) continue;
         const [cx, cy] = cells[i];
