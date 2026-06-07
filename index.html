@@ -82,6 +82,20 @@ canvas { display: block; touch-action: none; }
   transition: background .06s, color .06s;
 }
 #btn-center:active { background: #232323; }
+.langBtn {
+  position: absolute;
+  width: 120px; height: 46px;
+  left: 172px; top: 142px;
+  border-radius: 10px;
+  font-family: Arial, sans-serif; font-size: 18px; font-weight: bold;
+  cursor: pointer; border: 1px solid rgb(80,80,80);
+  background: rgb(26,26,26); color: rgb(100,100,100);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  display: none; z-index: 5;
+}
+#btn-en { left: 308px; }
+.langBtn.active { background: rgb(0,120,0); border-color: rgb(0,200,0); color: #fff; }
 </style>
 </head>
 <body>
@@ -96,6 +110,8 @@ canvas { display: block; touch-action: none; }
       <button class="nBtn" id="nameSkip"></button>
     </div>
   </div>
+  <button class="langBtn active" id="btn-ru">RU</button>
+  <button class="langBtn" id="btn-en">EN</button>
 </div>
 <div id="dpad">
   <div></div>
@@ -113,7 +129,7 @@ canvas { display: block; touch-action: none; }
 'use strict';
 
 // ── constants ─────────────────────────────────────────────
-const VERSION        = '2.08';
+const VERSION        = '2.09';
 const CELL           = 20;
 const COLS           = 30;
 const ROWS           = 25;
@@ -275,7 +291,7 @@ document.addEventListener('keydown', e => {
   }
   if (state === 'gameover') {
     if (e.key === 'r' || e.key === 'R' || e.key === 'Enter') { e.preventDefault(); startGame(); }
-    if (e.key === 'q' || e.key === 'Q' || e.key === 'Escape') { e.preventDefault(); state = 'start'; updateDpadUI(); }
+    if (e.key === 'q' || e.key === 'Q' || e.key === 'Escape') { e.preventDefault(); state = 'start'; updateDpadUI(); /* langBtns shown next render */ }
     return;
   }
   if (state === 'playing') {
@@ -335,20 +351,15 @@ nameInput.addEventListener('input', () => {
 nameOk.addEventListener('click',   () => finishEntry(false));
 nameSkip.addEventListener('click',  () => finishEntry(true));
 
-function handleLangTap(clientX, clientY) {
-  if (state !== 'start') return;
-  const rect = canvas.getBoundingClientRect();
-  const mx   = (clientX - rect.left) * (WIN_W / rect.width);
-  const my   = (clientY - rect.top)  * (WIN_H / rect.height);
-  if (mx >= LB_RU_X && mx <= LB_RU_X + LB_W && my >= LB_BTN_Y && my <= LB_BTN_Y + LB_H) lang = 'ru';
-  if (mx >= LB_EN_X && mx <= LB_EN_X + LB_W && my >= LB_BTN_Y && my <= LB_BTN_Y + LB_H) lang = 'en';
+const ruBtn = document.getElementById('btn-ru');
+const enBtn = document.getElementById('btn-en');
+function setLang(l) {
+  lang = l;
+  ruBtn.classList.toggle('active', lang === 'ru');
+  enBtn.classList.toggle('active', lang === 'en');
 }
-canvas.addEventListener('click', e => handleLangTap(e.clientX, e.clientY));
-canvas.addEventListener('touchstart', e => {
-  if (state !== 'start') return;
-  e.preventDefault();
-  if (e.touches.length) handleLangTap(e.touches[0].clientX, e.touches[0].clientY);
-}, { passive: false });
+ruBtn.addEventListener('click', () => setLang('ru'));
+enBtn.addEventListener('click', () => setLang('en'));
 
 // ── D-pad controls ────────────────────────────────────────
 function updateDpadUI() {
@@ -400,7 +411,12 @@ function dpadCenter() {
 })();
 
 // ── game init ─────────────────────────────────────────────
+function hideLangBtns() {
+  ruBtn.style.display = 'none';
+  enBtn.style.display = 'none';
+}
 function startGame() {
+  hideLangBtns();
   state            = 'playing';
   snake            = [[COLS >> 1, ROWS >> 1]];
   direction        = [1, 0];
@@ -732,17 +748,9 @@ function render(now) {
     ctx.fillText(L.title, cx, y);
     y += TITLE_H + 12;
 
-    // language buttons (centered)
-    const drawLB = (x, label, active) => {
-      rRect(x, y, LB_W, LB_H, 10);
-      ctx.fillStyle   = active ? 'rgb(0,120,0)'  : 'rgb(26,26,26)'; ctx.fill();
-      ctx.strokeStyle = active ? 'rgb(0,200,0)'  : 'rgb(80,80,80)'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.font = 'bold 18px Arial'; ctx.fillStyle = active ? '#fff' : 'rgb(100,100,100)';
-      ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-      ctx.fillText(label, x + LB_W / 2, y + LB_H / 2);
-    };
-    drawLB(LB_RU_X, 'RU', lang === 'ru');
-    drawLB(LB_EN_X, 'EN', lang === 'en');
+    // language buttons — real HTML elements (#btn-ru / #btn-en), shown via CSS
+    ruBtn.style.display = 'block';
+    enBtn.style.display = 'block';
     y += LB_H + 12;
 
     // Top divider
