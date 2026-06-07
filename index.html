@@ -113,7 +113,7 @@ canvas { display: block; touch-action: none; }
 'use strict';
 
 // ── constants ─────────────────────────────────────────────
-const VERSION        = '2.06';
+const VERSION        = '2.07';
 const CELL           = 20;
 const COLS           = 30;
 const ROWS           = 25;
@@ -335,14 +335,19 @@ nameInput.addEventListener('input', () => {
 nameOk.addEventListener('click',   () => finishEntry(false));
 nameSkip.addEventListener('click',  () => finishEntry(true));
 
-canvas.addEventListener('click', e => {
+function handleLangTap(clientX, clientY) {
   if (state !== 'start') return;
-  const rect   = canvas.getBoundingClientRect();
-  const mx     = (e.clientX - rect.left) * (WIN_W / rect.width);
-  const my     = (e.clientY - rect.top)  * (WIN_H / rect.height);
+  const rect = canvas.getBoundingClientRect();
+  const mx   = (clientX - rect.left) * (WIN_W / rect.width);
+  const my   = (clientY - rect.top)  * (WIN_H / rect.height);
   if (mx >= LB_RU_X && mx <= LB_RU_X + LB_W && my >= LB_BTN_Y && my <= LB_BTN_Y + LB_H) lang = 'ru';
   if (mx >= LB_EN_X && mx <= LB_EN_X + LB_W && my >= LB_BTN_Y && my <= LB_BTN_Y + LB_H) lang = 'en';
-});
+}
+canvas.addEventListener('click', e => handleLangTap(e.clientX, e.clientY));
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (e.changedTouches.length) handleLangTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+}, { passive: false });
 
 // ── D-pad controls ────────────────────────────────────────
 function updateDpadUI() {
@@ -804,23 +809,23 @@ function render(now) {
 
     // ── Right col: leaderboard ────────────────────────────
     const rcCx = RC_X + RC_W / 2;
-    ctx.font = 'bold 22px Arial'; ctx.fillStyle = 'rgb(190,190,190)';
+    ctx.font = 'bold 18px Arial'; ctx.fillStyle = 'rgb(190,190,190)';
     ctx.textBaseline = 'top'; ctx.textAlign = 'center';
     ctx.fillText(L.lb, rcCx, midY);
     ctx.strokeStyle = 'rgb(55,55,55)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(RC_X + 4, midY + 28); ctx.lineTo(RC_X + RC_W - 4, midY + 28); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(RC_X + 4, midY + 22); ctx.lineTo(RC_X + RC_W - 4, midY + 22); ctx.stroke();
 
     // Column headers
     const [colN, colS, colL] = L.lbCols;
-    ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(72,72,72)'; ctx.textBaseline = 'top';
-    ctx.textAlign = 'left';  ctx.fillText(colN, RC_X + 48,        midY + 32);
-    ctx.textAlign = 'right'; ctx.fillText(colS, RC_X + RC_W - 36, midY + 32);
-    ctx.textAlign = 'right'; ctx.fillText(colL, RC_X + RC_W - 2,  midY + 32);
+    ctx.font = 'bold 13px Arial'; ctx.fillStyle = 'rgb(72,72,72)'; ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';   ctx.fillText(colN, RC_X + 48,          midY + 26);
+    ctx.textAlign = 'center'; ctx.fillText(colS, 500,                 midY + 26);
+    ctx.textAlign = 'right';  ctx.fillText(colL, RC_X + RC_W - 2,    midY + 26);
     ctx.strokeStyle = 'rgb(40,40,40)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(RC_X + 4, midY + 48); ctx.lineTo(RC_X + RC_W - 4, midY + 48); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(RC_X + 4, midY + 41); ctx.lineTo(RC_X + RC_W - 4, midY + 41); ctx.stroke();
 
-    const entryY0 = midY + 52, entryH = 24;
-    const top10   = leaderboard.slice(0, 7);
+    const entryY0 = midY + 45, entryH = 20;
+    const top10   = leaderboard.slice(0, 9);
     if (lbStatus === 'loading') {
       ctx.font = '12px Arial'; ctx.fillStyle = 'rgb(70,70,70)';
       ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
@@ -846,14 +851,14 @@ function render(now) {
         else if (i===2){ bgC=null;           hi='rgb(90,90,90)';    txt='rgb(100,195,75)';  dim='rgb(95,95,95)';    }
         else           { bgC=null;           hi='rgb(90,90,90)';    txt='rgb(200,200,200)'; dim='rgb(95,95,95)';    }
         if (bgC) { rRect(RC_X + 3, ey - entryH / 2 + 1, RC_W - 6, entryH - 1, 3); ctx.fillStyle = bgC; ctx.fill(); }
-        ctx.font = (isMe || i < 3) ? 'bold 22px Arial' : '22px Arial';
+        ctx.font = (isMe || i < 3) ? 'bold 15px Arial' : '15px Arial';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = hi;  ctx.textAlign = 'right';
         ctx.fillText(`${i + 1}.`, RC_X + 42, ey);
         ctx.fillStyle = txt; ctx.textAlign = 'left';
         ctx.fillText(medal + nm, RC_X + 48, ey);
-        ctx.fillStyle = hi;  ctx.textAlign = 'right';
-        ctx.fillText(sc, RC_X + RC_W - 36, ey);
+        ctx.fillStyle = hi;  ctx.textAlign = 'center';
+        ctx.fillText(sc, 500, ey);
         ctx.fillStyle = dim; ctx.textAlign = 'right';
         ctx.fillText(ln != null ? ln : '', RC_X + RC_W - 2, ey);
       }
@@ -965,21 +970,21 @@ function render(now) {
       ctx.fillStyle = 'rgb(20,20,20)'; ctx.fill();
       ctx.strokeStyle = 'rgb(60,60,60)'; ctx.lineWidth = 1; ctx.stroke();
 
-      ctx.font = 'bold 22px Arial'; ctx.fillStyle = 'rgb(190,190,190)';
+      ctx.font = 'bold 18px Arial'; ctx.fillStyle = 'rgb(190,190,190)';
       ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-      ctx.fillText(L.lb, cx, lbY + 16);
+      ctx.fillText(L.lb, cx, lbY + 13);
       ctx.strokeStyle = 'rgb(55,55,55)';
-      ctx.beginPath(); ctx.moveTo(lbX + 4, lbY + 30); ctx.lineTo(lbX + lbW - 4, lbY + 30); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(lbX + 4, lbY + 24); ctx.lineTo(lbX + lbW - 4, lbY + 24); ctx.stroke();
 
-      ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(72,72,72)'; ctx.textBaseline = 'top';
-      ctx.textAlign = 'left';  ctx.fillText(colN, lbX + 50,        lbY + 34);
-      ctx.textAlign = 'right'; ctx.fillText(colS, lbX + lbW - 66,  lbY + 34);
-      ctx.textAlign = 'right'; ctx.fillText(colL, lbX + lbW - 4,   lbY + 34);
+      ctx.font = 'bold 13px Arial'; ctx.fillStyle = 'rgb(72,72,72)'; ctx.textBaseline = 'top';
+      ctx.textAlign = 'left';   ctx.fillText(colN, lbX + 50,           lbY + 28);
+      ctx.textAlign = 'center'; ctx.fillText(colS, lbX + 320,           lbY + 28);
+      ctx.textAlign = 'right';  ctx.fillText(colL, lbX + lbW - 4,      lbY + 28);
       ctx.strokeStyle = 'rgb(40,40,40)';
-      ctx.beginPath(); ctx.moveTo(lbX + 4, lbY + 50); ctx.lineTo(lbX + lbW - 4, lbY + 50); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(lbX + 4, lbY + 43); ctx.lineTo(lbX + lbW - 4, lbY + 43); ctx.stroke();
 
-      const eH = 22, eY0 = lbY + 54;
-      const top10go = leaderboard.slice(0, 7);
+      const eH = 20, eY0 = lbY + 47;
+      const top10go = leaderboard.slice(0, 8);
       if (lbStatus !== 'ok' || top10go.length === 0) {
         ctx.font = '12px Arial'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
         ctx.fillStyle = lbStatus === 'error' ? 'rgb(100,60,60)' : 'rgb(70,70,70)';
@@ -997,12 +1002,12 @@ function render(now) {
           else if (i===2){ bgC=null;           hi='rgb(90,90,90)';    txt='rgb(100,195,75)';  dim='rgb(95,95,95)';    }
           else           { bgC=null;           hi='rgb(90,90,90)';    txt='rgb(200,200,200)'; dim='rgb(95,95,95)';    }
           if (bgC) { rRect(lbX + 3, ey - eH/2 + 1, lbW - 6, eH - 1, 3); ctx.fillStyle = bgC; ctx.fill(); }
-          ctx.font = (isMe || i < 3) ? 'bold 22px Arial' : '22px Arial';
+          ctx.font = (isMe || i < 3) ? 'bold 15px Arial' : '15px Arial';
           ctx.textBaseline = 'middle';
-          ctx.fillStyle = hi;  ctx.textAlign = 'right'; ctx.fillText(`${i + 1}.`, lbX + 52,        ey);
-          ctx.fillStyle = txt; ctx.textAlign = 'left';  ctx.fillText(medal + nm,  lbX + 50,        ey);
-          ctx.fillStyle = hi;  ctx.textAlign = 'right'; ctx.fillText(sc,          lbX + lbW - 66, ey);
-          ctx.fillStyle = dim; ctx.textAlign = 'right'; ctx.fillText(ln != null ? ln : '', lbX + lbW - 4, ey);
+          ctx.fillStyle = hi;  ctx.textAlign = 'right';  ctx.fillText(`${i + 1}.`, lbX + 52,   ey);
+          ctx.fillStyle = txt; ctx.textAlign = 'left';   ctx.fillText(medal + nm,  lbX + 58,   ey);
+          ctx.fillStyle = hi;  ctx.textAlign = 'center'; ctx.fillText(sc,          lbX + 320,  ey);
+          ctx.fillStyle = dim; ctx.textAlign = 'right';  ctx.fillText(ln != null ? ln : '', lbX + lbW - 4, ey);
         }
       }
     }
