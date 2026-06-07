@@ -310,7 +310,7 @@ function grayscale() {
 function update(now) {
   if (state !== 'playing' || paused) return;
 
-  // снять эффект апельсина по истечении
+  // снять эффект картошки по истечении
   if (orangeEffectStart !== null && now - orangeEffectStart >= ORANGE_DUR)
     orangeEffectStart = null;
 
@@ -354,12 +354,12 @@ function update(now) {
     // хвост не удаляем → рост на 1
 
   } else if (orangePos !== null && eq([hx, hy], orangePos)) {
-    // ── Апельсин ────────────────────────────────────────
+    // ── Картошка ────────────────────────────────────────
     score += 2;
     orangePos         = null;
     orangeEffectStart = now;
     targetSpeed = Math.min(targetSpeed + SPEED_STEP, SPEED_MAX);
-    status = { start: now, text: 'Перевариваю!', color: [210, 150, 0] };
+    status = { start: now, text: 'Картошечка!', color: [210, 150, 0] };
     // хвост не удаляем → рост на 1
 
   } else if (cakes.some(c => eq(c, [hx, hy]))) {
