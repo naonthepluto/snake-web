@@ -113,7 +113,7 @@ canvas { display: block; touch-action: none; }
 'use strict';
 
 // ── constants ─────────────────────────────────────────────
-const VERSION        = '2.07';
+const VERSION        = '2.08';
 const CELL           = 20;
 const COLS           = 30;
 const ROWS           = 25;
@@ -344,9 +344,10 @@ function handleLangTap(clientX, clientY) {
   if (mx >= LB_EN_X && mx <= LB_EN_X + LB_W && my >= LB_BTN_Y && my <= LB_BTN_Y + LB_H) lang = 'en';
 }
 canvas.addEventListener('click', e => handleLangTap(e.clientX, e.clientY));
-canvas.addEventListener('touchend', e => {
+canvas.addEventListener('touchstart', e => {
+  if (state !== 'start') return;
   e.preventDefault();
-  if (e.changedTouches.length) handleLangTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  if (e.touches.length) handleLangTap(e.touches[0].clientX, e.touches[0].clientY);
 }, { passive: false });
 
 // ── D-pad controls ────────────────────────────────────────
