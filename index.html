@@ -461,7 +461,7 @@ function render(now) {
     if (now - blinkLast >= 550) { blinkOn = !blinkOn; blinkLast = now; }
 
     // solid dark background — no grid
-    ctx.fillStyle = 'rgb(10,12,10)'; ctx.fillRect(0, 0, WIN_W, WIN_H);
+    ctx.fillStyle = '#151515'; ctx.fillRect(0, 0, WIN_W, WIN_H);
 
     const L   = T[lang];
     const cx  = WIN_W / 2;
@@ -502,9 +502,9 @@ function render(now) {
     // language buttons (centered)
     const drawLB = (x, label, active) => {
       rRect(x, y, LB_W, LB_H, 6);
-      ctx.fillStyle   = active ? 'rgb(0,120,0)'  : 'rgb(22,26,22)'; ctx.fill();
-      ctx.strokeStyle = active ? 'rgb(0,200,0)'  : 'rgb(55,65,55)'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.font = 'bold 14px Arial'; ctx.fillStyle = active ? '#fff' : 'rgb(85,95,85)';
+      ctx.fillStyle   = active ? 'rgb(0,120,0)'  : 'rgb(26,26,26)'; ctx.fill();
+      ctx.strokeStyle = active ? 'rgb(0,200,0)'  : 'rgb(80,80,80)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.font = 'bold 14px Arial'; ctx.fillStyle = active ? '#fff' : 'rgb(100,100,100)';
       ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
       ctx.fillText(label, x + LB_W / 2, y + LB_H / 2);
     };
@@ -513,7 +513,7 @@ function render(now) {
     y += btnH + 16;
 
     // divider
-    ctx.strokeStyle = 'rgb(40,50,40)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgb(55,55,55)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(ruleBlockX, y); ctx.lineTo(ruleBlockX + ruleBlockW, y); ctx.stroke();
     y += divH + 16;
 
@@ -521,8 +521,8 @@ function render(now) {
     const cardY = y - 8;
     const cardH = rulesH + 16;
     rRect(ruleBlockX, cardY, ruleBlockW, cardH, 8);
-    ctx.fillStyle = 'rgb(16,20,16)'; ctx.fill();
-    ctx.strokeStyle = 'rgb(38,50,38)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = 'rgb(22,22,22)'; ctx.fill();
+    ctx.strokeStyle = 'rgb(70,70,70)'; ctx.lineWidth = 1; ctx.stroke();
 
     // food rules rows
     for (let i = 0; i < L.rules.length; i++) {
@@ -542,7 +542,7 @@ function render(now) {
     y += rulesH + 10;
 
     // notes
-    ctx.font = '12px Arial'; ctx.fillStyle = 'rgb(70,85,70)';
+    ctx.font = '12px Arial'; ctx.fillStyle = 'rgb(100,100,100)';
     ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
     for (let i = 0; i < L.notes.length; i++) {
       ctx.fillText('• ' + L.notes[i], cx, y + i * noteH + noteH / 2);
@@ -550,19 +550,19 @@ function render(now) {
     y += notesH + 16;
 
     // divider
-    ctx.strokeStyle = 'rgb(40,50,40)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgb(55,55,55)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(ruleBlockX, y); ctx.lineTo(ruleBlockX + ruleBlockW, y); ctx.stroke();
     y += divH + 14;
 
     // start prompt
     if (blinkOn) {
-      ctx.font = 'bold 18px Arial'; ctx.fillStyle = 'rgb(180,220,180)';
+      ctx.font = 'bold 18px Arial'; ctx.fillStyle = '#e8e8e8';
       ctx.textBaseline = 'top'; ctx.textAlign = 'center';
       ctx.fillText(L.start, cx, y);
     }
 
     // version bottom-right
-    ctx.font = '11px Arial'; ctx.fillStyle = 'rgb(45,55,45)';
+    ctx.font = '11px Arial'; ctx.fillStyle = 'rgb(65,65,65)';
     ctx.textBaseline = 'bottom'; ctx.textAlign = 'right';
     ctx.fillText('v' + VERSION, WIN_W - 8, WIN_H - 6);
 
@@ -573,7 +573,7 @@ function render(now) {
     const L  = T[lang];
     const cx = WIN_W / 2;
 
-    ctx.fillStyle = 'rgb(10,12,10)'; ctx.fillRect(0, 0, WIN_W, WIN_H);
+    ctx.fillStyle = '#151515'; ctx.fillRect(0, 0, WIN_W, WIN_H);
 
     // title
     ctx.textBaseline = 'top'; ctx.textAlign = 'center';
@@ -605,8 +605,8 @@ function render(now) {
     const gridX = cx - gridW / 2, gridY = 216;
 
     rRect(gridX - 12, gridY - 10, gridW + 24, gridH + 20, 8);
-    ctx.fillStyle = 'rgb(16,20,16)'; ctx.fill();
-    ctx.strokeStyle = 'rgb(40,55,40)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = 'rgb(22,22,22)'; ctx.fill();
+    ctx.strokeStyle = 'rgb(70,70,70)'; ctx.lineWidth = 1; ctx.stroke();
 
     for (let i = 0; i < items.length; i++) {
       const { key, color, count } = items[i];
