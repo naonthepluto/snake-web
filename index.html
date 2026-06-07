@@ -92,13 +92,6 @@ document.addEventListener('keydown', e => {
       if (paused) pauseMs = now;
       else         lastTickMs = now; // сброс: без рывка при возобновлении
     }
-    if ((e.key === 'x' || e.key === 'X') && !paused) {
-      const now = performance.now();
-      const shrinkBy = Math.max(0, Math.min(Math.floor(snake.length / 4), snake.length - 2));
-      shrinkPending += shrinkBy;
-      score += 5;
-      status = { start: now, text: 'Разгрузочный день!', color: [160, 50, 220] };
-    }
   }
 });
 
