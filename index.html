@@ -113,7 +113,7 @@ canvas { display: block; touch-action: none; }
 'use strict';
 
 // ── constants ─────────────────────────────────────────────
-const VERSION        = '2.02';
+const VERSION        = '2.03';
 const CELL           = 20;
 const COLS           = 30;
 const ROWS           = 25;
@@ -838,22 +838,19 @@ function render(now) {
         const { name: nm, score: sc, len: ln } = top10[i];
         const ey   = entryY0 + i * entryH + entryH / 2;
         const isMe = playerRank === i + 1 && playerName === nm;
-        if (isMe) {
-          rRect(RC_X + 3, ey - entryH / 2 + 1, RC_W - 6, entryH - 1, 3);
-          ctx.fillStyle = 'rgb(0,70,0)'; ctx.fill();
-        }
-        const hi  = isMe ? 'rgb(140,230,140)' : 'rgb(90,90,90)';
-        const txt = isMe ? '#fff'              : 'rgb(200,200,200)';
-        const dim = isMe ? 'rgb(100,180,100)'  : 'rgb(95,95,95)';
-        ctx.font = isMe ? 'bold 11px Arial' : '11px Arial';
+        let hi, txt, dim, bgC;
+        if      (isMe) { bgC='rgb(0,70,0)';         hi='rgb(140,230,140)'; txt='#fff';             dim='rgb(100,180,100)'; }
+        else if (i===0){ bgC='rgba(90,10,10,0.55)';  hi='rgb(210,60,60)';   txt='rgb(230,120,120)'; dim='rgb(160,50,50)';   }
+        else if (i===1){ bgC='rgba(80,65,0,0.55)';   hi='rgb(185,150,0)';   txt='rgb(215,180,70)';  dim='rgb(145,115,0)';   }
+        else if (i===2){ bgC='rgba(10,70,5,0.55)';   hi='rgb(60,180,50)';   txt='rgb(130,215,100)'; dim='rgb(50,145,40)';   }
+        else           { bgC=null;                   hi='rgb(90,90,90)';    txt='rgb(200,200,200)'; dim='rgb(95,95,95)';    }
+        if (bgC) { rRect(RC_X + 3, ey - entryH / 2 + 1, RC_W - 6, entryH - 1, 3); ctx.fillStyle = bgC; ctx.fill(); }
+        ctx.font = (isMe || i < 3) ? 'bold 11px Arial' : '11px Arial';
         ctx.textBaseline = 'middle';
-        // rank
         ctx.fillStyle = hi;  ctx.textAlign = 'right';
         ctx.fillText(`${i + 1}.`, RC_X + 22, ey);
-        // name
         ctx.fillStyle = txt; ctx.textAlign = 'left';
         ctx.fillText(nm, RC_X + 27, ey);
-        // score
         ctx.fillStyle = hi;  ctx.textAlign = 'right';
         ctx.fillText(sc, RC_X + RC_W - 36, ey);
         ctx.fillStyle = dim; ctx.textAlign = 'right';
@@ -957,6 +954,55 @@ function render(now) {
       ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(75,85,75)';
       ctx.textBaseline = 'top'; ctx.textAlign = 'center';
       ctx.fillText(L.restart, cx, rankY + 26);
+    }
+
+    // ── leaderboard (full width) ──────────────────────────
+    if (state === 'gameover') {
+      const lbX = 8, lbY = 356, lbW = 584, lbH = 218;
+      const [colN, colS, colL] = L.lbCols;
+      rRect(lbX, lbY, lbW, lbH, 8);
+      ctx.fillStyle = 'rgb(20,20,20)'; ctx.fill();
+      ctx.strokeStyle = 'rgb(60,60,60)'; ctx.lineWidth = 1; ctx.stroke();
+
+      ctx.font = 'bold 12px Arial'; ctx.fillStyle = 'rgb(150,150,150)';
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+      ctx.fillText(L.lb, cx, lbY + 11);
+      ctx.strokeStyle = 'rgb(55,55,55)';
+      ctx.beginPath(); ctx.moveTo(lbX + 4, lbY + 21); ctx.lineTo(lbX + lbW - 4, lbY + 21); ctx.stroke();
+
+      ctx.font = '10px Arial'; ctx.fillStyle = 'rgb(72,72,72)'; ctx.textBaseline = 'top';
+      ctx.textAlign = 'left';  ctx.fillText(colN, lbX + 50,        lbY + 24);
+      ctx.textAlign = 'right'; ctx.fillText(colS, lbX + lbW - 66,  lbY + 24);
+      ctx.textAlign = 'right'; ctx.fillText(colL, lbX + lbW - 4,   lbY + 24);
+      ctx.strokeStyle = 'rgb(40,40,40)';
+      ctx.beginPath(); ctx.moveTo(lbX + 4, lbY + 36); ctx.lineTo(lbX + lbW - 4, lbY + 36); ctx.stroke();
+
+      const eH = 16, eY0 = lbY + 40;
+      const top10go = leaderboard.slice(0, 10);
+      if (lbStatus !== 'ok' || top10go.length === 0) {
+        ctx.font = '12px Arial'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+        ctx.fillStyle = lbStatus === 'error' ? 'rgb(100,60,60)' : 'rgb(70,70,70)';
+        ctx.fillText(lbStatus === 'error' ? L.lbErr : lbStatus === 'loading' ? L.lbLoad : L.lbEmpty, cx, eY0 + 60);
+      } else {
+        for (let i = 0; i < top10go.length; i++) {
+          const { name: nm, score: sc, len: ln } = top10go[i];
+          const ey = eY0 + i * eH + eH / 2;
+          const isMe = playerRank === i + 1 && playerName === nm;
+          let hi, txt, dim, bgC;
+          if      (isMe) { bgC='rgb(0,70,0)';         hi='rgb(140,230,140)'; txt='#fff';             dim='rgb(100,180,100)'; }
+          else if (i===0){ bgC='rgba(90,10,10,0.55)';  hi='rgb(210,60,60)';   txt='rgb(230,120,120)'; dim='rgb(160,50,50)';   }
+          else if (i===1){ bgC='rgba(80,65,0,0.55)';   hi='rgb(185,150,0)';   txt='rgb(215,180,70)';  dim='rgb(145,115,0)';   }
+          else if (i===2){ bgC='rgba(10,70,5,0.55)';   hi='rgb(60,180,50)';   txt='rgb(130,215,100)'; dim='rgb(50,145,40)';   }
+          else           { bgC=null;                   hi='rgb(90,90,90)';    txt='rgb(200,200,200)'; dim='rgb(95,95,95)';    }
+          if (bgC) { rRect(lbX + 3, ey - eH/2 + 1, lbW - 6, eH - 1, 3); ctx.fillStyle = bgC; ctx.fill(); }
+          ctx.font = (isMe || i < 3) ? 'bold 11px Arial' : '11px Arial';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = hi;  ctx.textAlign = 'right'; ctx.fillText(`${i + 1}.`, lbX + 44,       ey);
+          ctx.fillStyle = txt; ctx.textAlign = 'left';  ctx.fillText(nm,          lbX + 50,       ey);
+          ctx.fillStyle = hi;  ctx.textAlign = 'right'; ctx.fillText(sc,          lbX + lbW - 66, ey);
+          ctx.fillStyle = dim; ctx.textAlign = 'right'; ctx.fillText(ln != null ? ln : '', lbX + lbW - 4, ey);
+        }
+      }
     }
 
     return;
