@@ -39,7 +39,7 @@ const SPEED_STEP     = 0.2;
 const SPEED_LERP     = 3;   // ед/с — скорость плавного нарастания
 const STATUS_DUR     = 2500;
 const ORANGE_DUR     = 3000;
-const SHRINK_DUR     = 800;  // мс — анимация растворения клеток салата
+const SHRINK_DUR     = 1000; // мс — анимация растворения клеток салата
 
 // ── canvas ────────────────────────────────────────────────
 const canvas = document.getElementById('c');
@@ -367,8 +367,9 @@ function update(now) {
     snake.pop(); // без роста
     const shrinkBy = Math.max(0, Math.min(Math.floor(snake.length / 4), snake.length - 2));
     if (shrinkBy > 0) {
+      // splice возвращает [ближний_к_новому_хвосту, ..., старый_конец]
       const removed = snake.splice(snake.length - shrinkBy, shrinkBy);
-      shrinkAnim = { cells: removed.reverse(), start: now }; // от хвоста к новому концу
+      shrinkAnim = { cells: removed, start: now };
     }
     status = { start: now, text: 'Разгрузочный день!', color: [160, 50, 220] };
 
@@ -421,19 +422,34 @@ function render(now) {
     if (el >= SHRINK_DUR) {
       shrinkAnim = null;
     } else {
-      const cells = shrinkAnim.cells; // [старый хвост, ..., ближний к новому хвосту]
+      const cells = shrinkAnim.cells; // [ближний к новому хвосту, ..., старый конец]
       const n = cells.length;
       for (let i = 0; i < n; i++) {
-        const delay  = n > 1 ? (i / (n - 1)) * 400 : 0; // стагерд 0–400мс
-        const cel    = el - delay;
-        if (cel <= 0) continue;
-        const alpha  = Math.max(0, 1 - cel / 400);       // угасание 400мс
+        // i=n-1 — старый конец хвоста, стартует первым (delay=0)
+        // i=0   — ближний к новому хвосту, стартует последним
+        const delay = n > 1 ? ((n - 1 - i) / (n - 1)) * 400 : 0;
+        const cel   = el - delay;
+        if (cel <= 0 || cel >= 600) continue;
+
+        let r, g, b, alpha;
+        if (cel < 80) {
+          r = 255; g = 255; b = 255; alpha = 1;           // белая вспышка
+        } else if (cel < 200) {
+          const t = (cel - 80) / 120;                     // белый → зелёный
+          r = Math.round(255 * (1 - t));
+          g = Math.round(255 * (1 - t) + 200 * t);
+          b = Math.round(255 * (1 - t));
+          alpha = 1;
+        } else {
+          r = 0; g = 200; b = 0;                          // зелёный → прозрачный
+          alpha = Math.max(0, 1 - (cel - 200) / 400);
+        }
         if (alpha <= 0) continue;
         const [cx, cy] = cells[i];
         ctx.save();
         ctx.globalAlpha = alpha;
         rRect(cx * CELL + 1, GAME_Y + cy * CELL + 1, CELL - 2, CELL - 2, 4);
-        ctx.fillStyle = 'rgb(0,200,0)'; ctx.fill();
+        ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fill();
         ctx.restore();
       }
     }
