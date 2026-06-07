@@ -24,7 +24,7 @@ canvas { display: block; }
 }
 #nameBox p { color: #bbb; font-size: 14px; margin-bottom: 12px; }
 #nameInput {
-  font-size: 26px; font-weight: bold; width: 88px; text-align: center;
+  font-size: 22px; font-weight: bold; width: 116px; text-align: center;
   background: #111; color: #fff; border: 2px solid #444; border-radius: 6px;
   padding: 4px 8px; letter-spacing: 6px; text-transform: uppercase;
   display: block; margin: 0 auto 14px;
@@ -43,7 +43,7 @@ canvas { display: block; }
   <canvas id="c"></canvas>
   <div id="nameBox">
     <p id="nameLabel"></p>
-    <input id="nameInput" maxlength="3" spellcheck="false" autocomplete="off" />
+    <input id="nameInput" maxlength="5" spellcheck="false" autocomplete="off" />
     <div>
       <button class="nBtn" id="nameOk">OK</button>
       <button class="nBtn" id="nameSkip"></button>
@@ -54,7 +54,7 @@ canvas { display: block; }
 'use strict';
 
 // ── constants ─────────────────────────────────────────────
-const VERSION        = '1.12';
+const VERSION        = '1.13';
 const CELL           = 20;
 const COLS           = 30;
 const ROWS           = 25;
@@ -96,7 +96,7 @@ const T = {
     lbEmpty:  '(пока пусто)',
     lbLoad:   'загрузка...',
     lbErr:    'недоступно',
-    enterName:'Введи инициалы (до 3 букв)',
+    enterName:'Введи инициалы (до 5 букв)',
     skip:     'Пропустить',
     noRank:   'Не попал в топ-100',
     rules: [
@@ -123,7 +123,7 @@ const T = {
     lbEmpty:  '(empty)',
     lbLoad:   'loading...',
     lbErr:    'unavailable',
-    enterName:'Enter initials (up to 3 chars)',
+    enterName:'Enter initials (up to 5 chars)',
     skip:     'Skip',
     noRank:   'Not in top 100',
     rules: [
@@ -156,6 +156,7 @@ let score, applesEaten, growPending, shrinkPending, nextOrangeAt, nextCakeAt, ne
 let saladPos, cellAnims;
 let speed, targetSpeed, status, orangeEffectStart, lastTickMs, paused, pauseMs;
 let statApples, statPotatoes, statCakes, statSalads;
+let finalLength = 0;
 let blinkOn = true, blinkLast = 0;
 let lang = 'ru';
 let leaderboard = [], lbStatus = 'loading';
@@ -187,7 +188,7 @@ async function fetchLeaderboard() {
 }
 
 async function submitScore(name) {
-  const entry   = { name: name.toUpperCase().slice(0, 3), score, date: new Date().toISOString().slice(0, 10) };
+  const entry   = { name: name.toUpperCase().slice(0, 5), score, len: finalLength, date: new Date().toISOString().slice(0, 10) };
   const updated = [...leaderboard, entry].sort((a, b) => b.score - a.score).slice(0, 100);
   const idx     = updated.indexOf(entry);
   playerRank    = idx >= 0 ? idx + 1 : -1;
@@ -295,6 +296,7 @@ function startGame() {
   applesEaten      = 0;
   playerRank       = -1;
   playerName       = '';
+  finalLength      = 0;
   statApples       = 0;
   statPotatoes     = 0;
   statCakes        = 0;
@@ -508,6 +510,7 @@ function update(now) {
 
   // сама себя
   if (snake.some(s => eq(s, [hx, hy]))) {
+    finalLength = snake.length;
     state = 'entry';
     showNameBox();
     return;
@@ -688,24 +691,30 @@ function render(now) {
       ctx.fillText(L.lbEmpty, rcCx, entryY0 + 50);
     } else {
       for (let i = 0; i < top10.length; i++) {
-        const { name: nm, score: sc } = top10[i];
+        const { name: nm, score: sc, len: ln } = top10[i];
         const ey   = entryY0 + i * entryH + entryH / 2;
         const isMe = playerRank === i + 1 && playerName === nm;
         if (isMe) {
           rRect(RC_X + 3, ey - entryH / 2 + 1, RC_W - 6, entryH - 1, 3);
           ctx.fillStyle = 'rgb(0,70,0)'; ctx.fill();
         }
-        ctx.font = isMe ? 'bold 12px Arial' : '12px Arial';
+        const hi  = isMe ? 'rgb(140,230,140)' : 'rgb(90,90,90)';
+        const txt = isMe ? '#fff'              : 'rgb(200,200,200)';
+        const dim = isMe ? 'rgb(100,180,100)'  : 'rgb(95,95,95)';
+        ctx.font = isMe ? 'bold 11px Arial' : '11px Arial';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = isMe ? 'rgb(140,230,140)' : 'rgb(90,90,90)';
-        ctx.textAlign = 'right';
-        ctx.fillText(`${i + 1}.`, RC_X + 26, ey);
-        ctx.fillStyle = isMe ? '#fff' : 'rgb(200,200,200)';
-        ctx.textAlign = 'left';
-        ctx.fillText(nm, RC_X + 32, ey);
-        ctx.fillStyle = isMe ? 'rgb(140,230,140)' : 'rgb(120,120,120)';
-        ctx.textAlign = 'right';
-        ctx.fillText(sc, RC_X + RC_W - 6, ey);
+        // rank
+        ctx.fillStyle = hi;  ctx.textAlign = 'right';
+        ctx.fillText(`${i + 1}.`, RC_X + 22, ey);
+        // name
+        ctx.fillStyle = txt; ctx.textAlign = 'left';
+        ctx.fillText(nm, RC_X + 27, ey);
+        // score
+        ctx.fillStyle = hi;  ctx.textAlign = 'right';
+        ctx.fillText(sc, RC_X + RC_W - 38, ey);
+        // length
+        ctx.fillStyle = dim; ctx.textAlign = 'right';
+        ctx.fillText(ln != null ? `L:${ln}` : '', RC_X + RC_W - 4, ey);
       }
     }
 
