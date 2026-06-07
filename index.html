@@ -54,7 +54,7 @@ canvas { display: block; }
 'use strict';
 
 // ── constants ─────────────────────────────────────────────
-const VERSION        = '1.13';
+const VERSION        = '1.14';
 const CELL           = 20;
 const COLS           = 30;
 const ROWS           = 25;
@@ -96,6 +96,7 @@ const T = {
     lbEmpty:  '(пока пусто)',
     lbLoad:   'загрузка...',
     lbErr:    'недоступно',
+    lbCols:   ['Инициалы', 'Очки', 'Длина'],
     enterName:'Введи инициалы (до 5 букв)',
     skip:     'Пропустить',
     noRank:   'Не попал в топ-100',
@@ -123,6 +124,7 @@ const T = {
     lbEmpty:  '(empty)',
     lbLoad:   'loading...',
     lbErr:    'unavailable',
+    lbCols:   ['Name', 'Score', 'Length'],
     enterName:'Enter initials (up to 5 chars)',
     skip:     'Skip',
     noRank:   'Not in top 100',
@@ -139,8 +141,8 @@ const T = {
 const LB_W = 54, LB_H = 28, LB_GAP = 8;
 const LB_RU_X = WIN_W / 2 - LB_W - LB_GAP / 2;
 const LB_EN_X = WIN_W / 2 + LB_GAP / 2;
-// button Y — two-column layout: title+gap+btns+gap+div+gap+MID(212)+gap+div+gap+prompt
-const _BLK_H  = 52 + 12 + LB_H + 12 + 1 + 14 + 212 + 14 + 1 + 12 + 24; // 382
+// button Y — two-column layout: title+gap+btns+gap+div+gap+MID(240)+gap+div+gap+prompt
+const _BLK_H  = 52 + 12 + LB_H + 12 + 1 + 14 + 240 + 14 + 1 + 12 + 24; // 410
 const LB_BTN_Y = Math.round((WIN_H - _BLK_H) / 2) + 52 + 12;
 
 // ── canvas ────────────────────────────────────────────────
@@ -601,7 +603,7 @@ function render(now) {
     const DIV_X = LC_X + LC_W + 4;
 
     // Centered vertical block
-    const TITLE_H = 52, MID_H = 212;
+    const TITLE_H = 52, MID_H = 240;
     const blockH  = TITLE_H + 12 + LB_H + 12 + 1 + 14 + MID_H + 14 + 1 + 12 + 24;
     const sy      = Math.round((WIN_H - blockH) / 2);
     let y = sy;
@@ -633,11 +635,11 @@ function render(now) {
     const midY = y;
 
     // ── Left col: food rules ──────────────────────────────
-    const dotR  = 7, rowH = 32, noteH = 20;
+    const dotR  = 7, rowH = 34;
     const dotX  = LC_X + 16 + dotR;
     const textX = dotX + dotR + 8;
 
-    rRect(LC_X + 4, midY - 4, LC_W - 6, L.rules.length * rowH + 16, 7);
+    rRect(LC_X + 4, midY - 4, LC_W - 6, L.rules.length * rowH + 14, 7);
     ctx.fillStyle = 'rgb(22,22,22)'; ctx.fill();
     ctx.strokeStyle = 'rgb(65,65,65)'; ctx.lineWidth = 1; ctx.stroke();
 
@@ -647,20 +649,41 @@ function render(now) {
       ctx.beginPath(); ctx.arc(dotX, ry, dotR, 0, Math.PI * 2);
       ctx.fillStyle = color; ctx.fill();
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-      ctx.font = 'bold 13px Arial'; ctx.fillStyle = '#dedede';
+      ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#f0f0f0';
       const nameStr = name + ':';
       ctx.fillText(nameStr, textX, ry);
       const nw = ctx.measureText(nameStr).width;
-      ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(110,110,110)';
+      ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(148,148,148)';
       ctx.fillText('  ' + desc, textX + nw, ry);
     }
 
-    // Notes
-    const notesY0 = midY + L.rules.length * rowH + 10;
-    ctx.font = '11px Arial'; ctx.fillStyle = 'rgb(85,85,85)';
-    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-    for (let i = 0; i < L.notes.length; i++) {
-      ctx.fillText('• ' + L.notes[i], LC_X + 8, notesY0 + i * noteH + noteH / 2);
+    // Notes box with word-wrap
+    const notesBoxX  = LC_X + 4;
+    const notesBoxW  = LC_W - 6;
+    const noteInnerW = notesBoxW - 18;
+    const noteLH = 15, notePad = 7;
+    ctx.font = '12px Arial';
+    const wrapLines = txt => {
+      const words = txt.split(' '), lines = [];
+      let line = '';
+      for (const w of words) {
+        const t = line ? line + ' ' + w : w;
+        if (ctx.measureText(t).width > noteInnerW && line) { lines.push(line); line = w; }
+        else line = t;
+      }
+      if (line) lines.push(line);
+      return lines;
+    };
+    const notesY0  = midY + L.rules.length * rowH + 8;
+    const allLines = L.notes.flatMap(n => wrapLines('• ' + n));
+    const notesBoxH = allLines.length * noteLH + notePad * 2;
+    rRect(notesBoxX, notesY0, notesBoxW, notesBoxH, 6);
+    ctx.fillStyle = 'rgb(20,20,20)'; ctx.fill();
+    ctx.strokeStyle = 'rgb(55,55,55)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.font = '12px Arial'; ctx.fillStyle = 'rgb(132,132,132)';
+    ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+    for (let i = 0; i < allLines.length; i++) {
+      ctx.fillText(allLines[i], notesBoxX + 9, notesY0 + notePad + i * noteLH);
     }
 
     // Vertical divider
@@ -673,9 +696,18 @@ function render(now) {
     ctx.textBaseline = 'top'; ctx.textAlign = 'center';
     ctx.fillText(L.lb, rcCx, midY);
     ctx.strokeStyle = 'rgb(55,55,55)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(RC_X + 6, midY + 20); ctx.lineTo(RC_X + RC_W - 6, midY + 20); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(RC_X + 4, midY + 18); ctx.lineTo(RC_X + RC_W - 4, midY + 18); ctx.stroke();
 
-    const entryY0 = midY + 28, entryH = 17;
+    // Column headers
+    const [colN, colS, colL] = L.lbCols;
+    ctx.font = '10px Arial'; ctx.fillStyle = 'rgb(72,72,72)'; ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';  ctx.fillText(colN, RC_X + 27,        midY + 22);
+    ctx.textAlign = 'right'; ctx.fillText(colS, RC_X + RC_W - 36, midY + 22);
+    ctx.textAlign = 'right'; ctx.fillText(colL, RC_X + RC_W - 2,  midY + 22);
+    ctx.strokeStyle = 'rgb(40,40,40)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(RC_X + 4, midY + 34); ctx.lineTo(RC_X + RC_W - 4, midY + 34); ctx.stroke();
+
+    const entryY0 = midY + 38, entryH = 16;
     const top10   = leaderboard.slice(0, 10);
     if (lbStatus === 'loading') {
       ctx.font = '12px Arial'; ctx.fillStyle = 'rgb(70,70,70)';
@@ -711,10 +743,9 @@ function render(now) {
         ctx.fillText(nm, RC_X + 27, ey);
         // score
         ctx.fillStyle = hi;  ctx.textAlign = 'right';
-        ctx.fillText(sc, RC_X + RC_W - 38, ey);
-        // length
+        ctx.fillText(sc, RC_X + RC_W - 36, ey);
         ctx.fillStyle = dim; ctx.textAlign = 'right';
-        ctx.fillText(ln != null ? `L:${ln}` : '', RC_X + RC_W - 4, ey);
+        ctx.fillText(ln != null ? ln : '', RC_X + RC_W - 2, ey);
       }
     }
 
