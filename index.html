@@ -36,9 +36,50 @@ canvas { display: block; }
 }
 #nameOk   { background: #1a3a1a; color: #fff; border-color: #3a7a3a; margin-right: 8px; }
 #nameSkip { background: #232323; color: #666; border-color: #3a3a3a; }
+#gameWrap { display: flex; flex-direction: column; align-items: center; }
+#dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 60px);
+  grid-template-rows: repeat(3, 52px);
+  gap: 3px;
+  margin-top: 8px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.dp {
+  background: #1e1e1e;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: #888;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .06s, color .06s, border-color .06s;
+}
+.dp:active { background: #2e2e2e; color: #ccc; border-color: #666; }
+#btn-center {
+  background: #181818;
+  border: 1px solid #2a5a2a;
+  border-radius: 8px;
+  color: #4a8a4a;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .06s, color .06s;
+}
+#btn-center:active { background: #232323; }
 </style>
 </head>
 <body>
+<div id="gameWrap">
 <div id="nameWrap">
   <canvas id="c"></canvas>
   <div id="nameBox">
@@ -50,11 +91,23 @@ canvas { display: block; }
     </div>
   </div>
 </div>
+<div id="dpad">
+  <div></div>
+  <button class="dp" id="btn-up">▲</button>
+  <div></div>
+  <button class="dp" id="btn-left">◀</button>
+  <button id="btn-center">▶</button>
+  <button class="dp" id="btn-right">▶</button>
+  <div></div>
+  <button class="dp" id="btn-down">▼</button>
+  <div></div>
+</div>
+</div>
 <script>
 'use strict';
 
 // ── constants ─────────────────────────────────────────────
-const VERSION        = '1.14';
+const VERSION        = '2.01';
 const CELL           = 20;
 const COLS           = 30;
 const ROWS           = 25;
@@ -216,7 +269,7 @@ document.addEventListener('keydown', e => {
   }
   if (state === 'gameover') {
     if (e.key === 'r' || e.key === 'R' || e.key === 'Enter') { e.preventDefault(); startGame(); }
-    if (e.key === 'q' || e.key === 'Q' || e.key === 'Escape') { e.preventDefault(); state = 'start'; }
+    if (e.key === 'q' || e.key === 'Q' || e.key === 'Escape') { e.preventDefault(); state = 'start'; updateDpadUI(); }
     return;
   }
   if (state === 'playing') {
@@ -233,6 +286,7 @@ document.addEventListener('keydown', e => {
       paused = !paused;
       if (paused) pauseMs = now;
       else         lastTickMs = now; // сброс: без рывка при возобновлении
+      updateDpadUI();
     }
   }
 });
@@ -262,6 +316,7 @@ async function finishEntry(skip) {
     playerRank = -1;
   }
   state = 'gameover';
+  updateDpadUI();
 }
 
 nameInput.addEventListener('keydown', async e => {
@@ -282,6 +337,55 @@ canvas.addEventListener('click', e => {
   if (mx >= LB_RU_X && mx <= LB_RU_X + LB_W && my >= LB_BTN_Y && my <= LB_BTN_Y + LB_H) lang = 'ru';
   if (mx >= LB_EN_X && mx <= LB_EN_X + LB_W && my >= LB_BTN_Y && my <= LB_BTN_Y + LB_H) lang = 'en';
 });
+
+// ── D-pad controls ────────────────────────────────────────
+function updateDpadUI() {
+  const c = document.getElementById('btn-center');
+  if (!c) return;
+  if (state === 'start' || state === 'gameover') {
+    c.textContent = '▶'; c.style.color = '#4a8a4a'; c.style.borderColor = '#2a5a2a';
+  } else if (state === 'entry') {
+    c.textContent = '—'; c.style.color = '#333'; c.style.borderColor = '#252525';
+  } else if (paused) {
+    c.textContent = '▶'; c.style.color = '#4a8a4a'; c.style.borderColor = '#2a5a2a';
+  } else {
+    c.textContent = '⏸'; c.style.color = '#555'; c.style.borderColor = '#303030';
+  }
+}
+
+function dpadDir(dx, dy) {
+  if (state !== 'playing' || paused) return;
+  const last = dirQueue.length > 0 ? dirQueue[dirQueue.length - 1] : direction;
+  if (last[0] + dx === 0 && last[1] + dy === 0) return;
+  if (dirQueue.length < 2) dirQueue.push([dx, dy]);
+}
+
+function dpadCenter() {
+  if (state === 'start' || state === 'gameover') { startGame(); return; }
+  if (state !== 'playing') return;
+  const now = performance.now();
+  paused = !paused;
+  if (paused) pauseMs = now;
+  else        lastTickMs = now;
+  updateDpadUI();
+}
+
+(function bindDpad() {
+  const dirs = [
+    ['btn-up',     0, -1],
+    ['btn-down',   0,  1],
+    ['btn-left',  -1,  0],
+    ['btn-right',  1,  0],
+  ];
+  for (const [id, dx, dy] of dirs) {
+    const el = document.getElementById(id);
+    el.addEventListener('touchstart', e => { e.preventDefault(); dpadDir(dx, dy); }, { passive: false });
+    el.addEventListener('click', () => dpadDir(dx, dy));
+  }
+  const bc = document.getElementById('btn-center');
+  bc.addEventListener('touchstart', e => { e.preventDefault(); dpadCenter(); }, { passive: false });
+  bc.addEventListener('click', dpadCenter);
+})();
 
 // ── game init ─────────────────────────────────────────────
 function startGame() {
@@ -315,6 +419,7 @@ function startGame() {
   lastTickMs       = performance.now();
   paused           = false;
   pauseMs          = 0;
+  updateDpadUI();
 }
 
 // ── draw primitives ───────────────────────────────────────
@@ -515,6 +620,7 @@ function update(now) {
     finalLength = snake.length;
     state = 'entry';
     showNameBox();
+    updateDpadUI();
     return;
   }
 
