@@ -22,7 +22,7 @@ canvas { display: block; }
 'use strict';
 
 // ── constants ─────────────────────────────────────────────
-const VERSION        = '1.09';
+const VERSION        = '1.10';
 const CELL           = 20;
 const COLS           = 30;
 const ROWS           = 25;
@@ -41,6 +41,52 @@ const STATUS_DUR     = 2500;
 const ORANGE_DUR     = 3000;
 const CELL_DUR       = 350;  // мс на одну клетку хвоста при анимации салата
 
+// ── translations ──────────────────────────────────────────
+const T = {
+  ru: {
+    title:    'ЗМЕЙКА++',
+    start:    'ПРОБЕЛ / ENTER — начать',
+    gameOver: 'ИГРА ОКОНЧЕНА',
+    score:    'Счёт',
+    speed:    'Скорость',
+    pause:    'ПАУЗА',
+    restart:  'R / ENTER — рестарт   •   Q — меню',
+    author:   'Навайбкодил Лёша Карпич 5-б',
+    ms:       'мс',
+    status:   { apple: 'Восторг!', potato: 'Картошечка!', cake: 'Ой! Я съела нельзЮ..', salad: 'Разгрузочный день!' },
+    rules: [
+      { color: '#dc2828', name: 'Яблоко',   desc: '+1 очко, растёт' },
+      { color: '#ffbe00', name: 'Картошка', desc: '+2 очка, замедляет на 3с' },
+      { color: '#00c8ff', name: 'Пирог',    desc: '−5 очков, вырастает вдвое' },
+      { color: '#a032dc', name: 'Салат',    desc: '+5 очков, укорачивает на ¼' },
+    ],
+    notes: ['Поле сферическое — выходишь за край, входишь с другой стороны', 'Врезаться в себя — конец игры'],
+  },
+  en: {
+    title:    'SNAKE++',
+    start:    'SPACE / ENTER — play',
+    gameOver: 'GAME OVER',
+    score:    'Score',
+    speed:    'Speed',
+    pause:    'PAUSE',
+    restart:  'R / ENTER — restart   •   Q — menu',
+    author:   'Vibe-coded by Lesha Karpich, 5-B',
+    ms:       'ms',
+    status:   { apple: 'Yummy!', potato: 'Potatoes!', cake: "Oops, shouldn't have..", salad: 'Diet day!' },
+    rules: [
+      { color: '#dc2828', name: 'Apple',   desc: '+1 pt, grows' },
+      { color: '#ffbe00', name: 'Potato',  desc: '+2 pts, slows for 3s' },
+      { color: '#00c8ff', name: 'Cake',    desc: '−5 pts, doubles in length' },
+      { color: '#a032dc', name: 'Salad',   desc: '+5 pts, shrinks by ¼' },
+    ],
+    notes: ['Spherical field — wrap around edges', 'Crash into yourself — game over'],
+  },
+};
+
+const LB_W = 54, LB_H = 28, LB_GAP = 8, LB_Y = 82;
+const LB_RU_X = WIN_W / 2 - LB_W - LB_GAP / 2;
+const LB_EN_X = WIN_W / 2 + LB_GAP / 2;
+
 // ── canvas ────────────────────────────────────────────────
 const canvas = document.getElementById('c');
 canvas.width  = WIN_W;
@@ -54,6 +100,7 @@ let score, applesEaten, growPending, shrinkPending, nextOrangeAt, nextCakeAt, ne
 let saladPos, cellAnims;
 let speed, targetSpeed, status, orangeEffectStart, lastTickMs, paused, pauseMs;
 let blinkOn = true, blinkLast = 0;
+let lang = 'ru';
 
 // ── helpers ───────────────────────────────────────────────
 const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
@@ -93,6 +140,15 @@ document.addEventListener('keydown', e => {
       else         lastTickMs = now; // сброс: без рывка при возобновлении
     }
   }
+});
+
+canvas.addEventListener('click', e => {
+  if (state !== 'start') return;
+  const rect   = canvas.getBoundingClientRect();
+  const mx     = (e.clientX - rect.left) * (WIN_W / rect.width);
+  const my     = (e.clientY - rect.top)  * (WIN_H / rect.height);
+  if (mx >= LB_RU_X && mx <= LB_RU_X + LB_W && my >= LB_Y && my <= LB_Y + LB_H) lang = 'ru';
+  if (mx >= LB_EN_X && mx <= LB_EN_X + LB_W && my >= LB_Y && my <= LB_Y + LB_H) lang = 'en';
 });
 
 // ── game init ─────────────────────────────────────────────
@@ -230,7 +286,7 @@ function drawHUD(now) {
 
   // score box (left)
   ctx.font = 'bold 22px Arial';
-  const sTxt = `Счёт:  ${score}`;
+  const sTxt = `${T[lang].score}:  ${score}`;
   const bw1  = ctx.measureText(sTxt).width + 22;
   drawBox(8, by, bw1, bh);
   ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
@@ -239,13 +295,13 @@ function drawHUD(now) {
   // speed box (right)
   const dispSpd = s => Math.max(1, Math.min(50, Math.round(1 + (s - SPEED_INIT) / SPEED_STEP)));
   ctx.font = '13px Arial';
-  const spTxt = `Скорость:  ${dispSpd(eff)}`;
+  const spTxt = `${T[lang].speed}:  ${dispSpd(eff)}`;
   const bw2   = ctx.measureText(spTxt).width + 22;
   const bx2   = WIN_W - bw2 - 8;
   drawBox(bx2, by, bw2, bh);
   if (orangeEffectStart !== null) {
     const rem    = Math.max(0, ORANGE_DUR - (now - orangeEffectStart));
-    const tmrTxt = `${Math.round(rem)} мс`;
+    const tmrTxt = `${Math.round(rem)} ${T[lang].ms}`;
     const mid    = by + bh / 2;
     ctx.font = '13px Arial';
     ctx.fillStyle = '#fff'; ctx.textBaseline = 'bottom'; ctx.textAlign = 'left';
@@ -261,14 +317,14 @@ function drawHUD(now) {
   let stW;
   if (status !== null) {
     ctx.font = 'bold 22px Arial';
-    stW = ctx.measureText(status.text).width + 28;
+    stW = ctx.measureText(T[lang].status[status.key]).width + 28;
   } else {
     stW = 120;
   }
   const stX = (WIN_W - stW) / 2;
   drawBox(stX, by, stW, bh);
   if (status !== null) {
-    drawStatusAnim(stX + stW / 2, by + bh / 2, now - status.start, status.text, status.color);
+    drawStatusAnim(stX + stW / 2, by + bh / 2, now - status.start, T[lang].status[status.key], status.color);
   }
 
   // bottom panel
@@ -278,7 +334,7 @@ function drawHUD(now) {
   ctx.beginPath(); ctx.moveTo(0, GAME_Y + FIELD_H); ctx.lineTo(WIN_W, GAME_Y + FIELD_H); ctx.stroke();
 
   ctx.font = '13px Arial';
-  const aTxt = `Змейка++  •  Навайбкодил Лёша Карпич 5-б  •  версия ${VERSION}`;
+  const aTxt = `${T[lang].title}  •  ${T[lang].author}  •  v${VERSION}`;
   const aW   = ctx.measureText(aTxt).width + 20;
   const aH   = PANEL_BOTTOM - 8;
   const aX   = (WIN_W - aW) / 2;
@@ -331,7 +387,7 @@ function update(now) {
     const occ = () => [...snake, ...(orangePos ? [orangePos] : []), ...cakes, ...(saladPos ? [saladPos] : [])];
     food  = randomFood([...occ(), food]);
     targetSpeed = Math.min(targetSpeed + SPEED_STEP, SPEED_MAX);
-    status = { start: now, text: 'Восторг!', color: [220, 40, 40] };
+    status = { start: now, key: 'apple', color: [220, 40, 40] };
     if (applesEaten === nextOrangeAt) {
       orangePos    = randomFood([...snake, food, ...cakes, ...(saladPos ? [saladPos] : [])]);
       nextOrangeAt = applesEaten + ri(2, 4);
@@ -352,7 +408,7 @@ function update(now) {
     orangePos         = null;
     orangeEffectStart = now;
     targetSpeed = Math.min(targetSpeed + SPEED_STEP, SPEED_MAX);
-    status = { start: now, text: 'Картошечка!', color: [210, 150, 0] };
+    status = { start: now, key: 'potato', color: [210, 150, 0] };
     // хвост не удаляем → рост на 1
 
   } else if (cakes.some(c => eq(c, [hx, hy]))) {
@@ -361,7 +417,7 @@ function update(now) {
     score      -= 5;
     growPending += Math.max(0, preLen - 1); // вырасти до 2×preLen
     targetSpeed = Math.min(targetSpeed + SPEED_STEP, SPEED_MAX);
-    status = { start: now, text: 'Ой! Я съела нельзЮ..', color: [0, 190, 235] };
+    status = { start: now, key: 'cake', color: [0, 190, 235] };
 
   } else if (saladPos !== null && eq([hx, hy], saladPos)) {
     // ── Салат ───────────────────────────────────────────
@@ -370,7 +426,7 @@ function update(now) {
     const shrinkBy = Math.max(0, Math.min(Math.floor(snake.length / 4), snake.length - 2));
     shrinkPending += shrinkBy; // хвост убирается по одной клетке в каждом тике
     score += 5;
-    status = { start: now, text: 'Разгрузочный день!', color: [160, 50, 220] };
+    status = { start: now, key: 'salad', color: [160, 50, 220] };
 
   } else {
     // ── Обычный ход ─────────────────────────────────────
@@ -391,25 +447,85 @@ function render(now) {
     if (now - blinkLast >= 550) { blinkOn = !blinkOn; blinkLast = now; }
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, WIN_W, WIN_H);
     drawGrid();
+
+    const L  = T[lang];
+    const cx = WIN_W / 2;
+
+    // title
     ctx.textBaseline = 'top'; ctx.textAlign = 'center';
-    ctx.font = 'bold 48px Arial'; ctx.fillStyle = 'rgb(0,200,0)';
-    ctx.fillText('ЗМЕЙКА++', WIN_W / 2, WIN_H / 2 - 70);
-    if (blinkOn) {
-      ctx.font = 'bold 22px Arial'; ctx.fillStyle = '#fff';
-      ctx.fillText('Нажмите ПРОБЕЛ для начала', WIN_W / 2, WIN_H / 2 + 20);
+    ctx.font = 'bold 44px Arial'; ctx.fillStyle = 'rgb(0,200,0)';
+    ctx.fillText(L.title, cx, 20);
+
+    // language buttons
+    const drawLB = (x, label, active) => {
+      rRect(x, LB_Y, LB_W, LB_H, 5);
+      ctx.fillStyle   = active ? 'rgb(0,130,0)' : 'rgb(30,30,30)'; ctx.fill();
+      ctx.strokeStyle = active ? 'rgb(0,210,0)' : 'rgb(70,70,70)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.font = 'bold 14px Arial'; ctx.fillStyle = active ? '#fff' : 'rgb(100,100,100)';
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+      ctx.fillText(label, x + LB_W / 2, LB_Y + LB_H / 2);
+    };
+    drawLB(LB_RU_X, 'RU', lang === 'ru');
+    drawLB(LB_EN_X, 'EN', lang === 'en');
+
+    // divider
+    const divTop = LB_Y + LB_H + 12;
+    ctx.strokeStyle = 'rgb(50,50,50)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(40, divTop); ctx.lineTo(WIN_W - 40, divTop); ctx.stroke();
+
+    // food rules
+    const dotR = 6, ruleX = 78, rowH = 32, rulesY = divTop + 16;
+    for (let i = 0; i < L.rules.length; i++) {
+      const { color, name, desc } = L.rules[i];
+      const ry = rulesY + i * rowH + rowH / 2;
+      ctx.beginPath(); ctx.arc(ruleX, ry, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      ctx.font = 'bold 13px Arial'; ctx.fillStyle = '#ddd';
+      const nameStr = name + ':';
+      ctx.fillText(nameStr, ruleX + dotR + 8, ry);
+      const nw = ctx.measureText(nameStr).width;
+      ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(140,140,140)';
+      ctx.fillText(' ' + desc, ruleX + dotR + 8 + nw, ry);
     }
+
+    // notes
+    const notesY = rulesY + L.rules.length * rowH + 8;
+    ctx.font = '12px Arial'; ctx.fillStyle = 'rgb(90,90,90)'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    for (let i = 0; i < L.notes.length; i++) {
+      ctx.fillText('• ' + L.notes[i], 44, notesY + i * 22 + 11);
+    }
+
+    // divider
+    const divBot = notesY + L.notes.length * 22 + 12;
+    ctx.strokeStyle = 'rgb(50,50,50)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(40, divBot); ctx.lineTo(WIN_W - 40, divBot); ctx.stroke();
+
+    // start prompt (blinking)
+    if (blinkOn) {
+      ctx.font = 'bold 18px Arial'; ctx.fillStyle = '#fff';
+      ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+      ctx.fillText(L.start, cx, divBot + 12);
+    }
+
+    // version
+    ctx.font = '11px Arial'; ctx.fillStyle = 'rgb(55,55,55)';
+    ctx.textBaseline = 'bottom'; ctx.textAlign = 'center';
+    ctx.fillText('v' + VERSION, cx, WIN_H - 6);
+
     return;
   }
 
   if (state === 'gameover') {
+    const L = T[lang];
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, WIN_W, WIN_H);
     ctx.textBaseline = 'top'; ctx.textAlign = 'center';
     ctx.font = 'bold 48px Arial'; ctx.fillStyle = 'rgb(220,40,40)';
-    ctx.fillText('ИГРА ОКОНЧЕНА', WIN_W / 2, WIN_H / 2 - 70);
+    ctx.fillText(L.gameOver, WIN_W / 2, WIN_H / 2 - 70);
     ctx.font = 'bold 22px Arial'; ctx.fillStyle = '#fff';
-    ctx.fillText(`Счёт: ${score}`, WIN_W / 2, WIN_H / 2);
+    ctx.fillText(`${L.score}: ${score}`, WIN_W / 2, WIN_H / 2);
     ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(90,90,90)';
-    ctx.fillText('R — рестарт   Q — выход', WIN_W / 2, WIN_H / 2 + 46);
+    ctx.fillText(L.restart, WIN_W / 2, WIN_H / 2 + 46);
     return;
   }
 
@@ -459,7 +575,7 @@ function render(now) {
     ctx.fillStyle    = `rgb(${br},${br},${br})`;
     ctx.textBaseline = 'middle';
     ctx.textAlign    = 'center';
-    ctx.fillText('ПАУЗА', WIN_W / 2, WIN_H / 2);
+    ctx.fillText(T[lang].pause, WIN_W / 2, WIN_H / 2);
   }
 }
 
