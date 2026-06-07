@@ -269,7 +269,7 @@ nameInput.addEventListener('keydown', async e => {
   if (e.key === 'Escape') { e.preventDefault(); finishEntry(true);  }
 });
 nameInput.addEventListener('input', () => {
-  nameInput.value = nameInput.value.replace(/[^a-zA-Zа-яА-ЯёЁ]/g, '').toUpperCase();
+  nameInput.value = nameInput.value.replace(/[^a-zA-Zа-яА-ЯёЁ0-9]/g, '').toUpperCase();
 });
 nameOk.addEventListener('click',   () => finishEntry(false));
 nameSkip.addEventListener('click',  () => finishEntry(true));
