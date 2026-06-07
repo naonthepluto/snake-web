@@ -22,7 +22,7 @@ canvas { display: block; }
 'use strict';
 
 // ── constants ─────────────────────────────────────────────
-const VERSION        = '1.08';
+const VERSION        = '1.09';
 const CELL           = 20;
 const COLS           = 30;
 const ROWS           = 25;
@@ -50,8 +50,8 @@ const ctx = canvas.getContext('2d');
 // ── game state ────────────────────────────────────────────
 let state = 'start'; // 'start' | 'playing' | 'gameover'
 let snake, direction, dirQueue, food, orangePos, cakes;
-let score, applesEaten, growPending, nextOrangeAt, nextCakeAt, nextSaladAt;
-let saladPos, shrinkAnim;
+let score, applesEaten, growPending, shrinkPending, nextOrangeAt, nextCakeAt, nextSaladAt;
+let saladPos, cellAnims;
 let speed, targetSpeed, status, orangeEffectStart, lastTickMs, paused, pauseMs;
 let blinkOn = true, blinkLast = 0;
 
@@ -95,10 +95,7 @@ document.addEventListener('keydown', e => {
     if ((e.key === 'x' || e.key === 'X') && !paused) {
       const now = performance.now();
       const shrinkBy = Math.max(0, Math.min(Math.floor(snake.length / 4), snake.length - 2));
-      if (shrinkBy > 0) {
-        const removed = snake.splice(snake.length - shrinkBy, shrinkBy);
-        shrinkAnim = { cells: removed, start: now };
-      }
+      shrinkPending += shrinkBy;
       score += 5;
       status = { start: now, text: 'Разгрузочный день!', color: [160, 50, 220] };
     }
@@ -115,13 +112,14 @@ function startGame() {
   orangePos        = null;
   cakes            = [];
   saladPos         = null;
+  cellAnims        = [];
   score            = 0;
   applesEaten      = 0;
   growPending      = 0;
+  shrinkPending    = 0;
   nextOrangeAt     = ri(2, 4);
   nextCakeAt       = ri(5, 9);
   nextSaladAt      = ri(9, 13);
-  shrinkAnim       = null;
   speed            = SPEED_INIT;
   targetSpeed      = SPEED_INIT;
   status           = null;
@@ -377,11 +375,7 @@ function update(now) {
     saladPos = null;
     snake.pop(); // без роста
     const shrinkBy = Math.max(0, Math.min(Math.floor(snake.length / 4), snake.length - 2));
-    if (shrinkBy > 0) {
-      // splice возвращает [ближний_к_новому_хвосту, ..., старый_конец]
-      const removed = snake.splice(snake.length - shrinkBy, shrinkBy);
-      shrinkAnim = { cells: removed, start: now };
-    }
+    shrinkPending += shrinkBy; // хвост убирается по одной клетке в каждом тике
     score += 5;
     status = { start: now, text: 'Разгрузочный день!', color: [160, 50, 220] };
 
@@ -389,6 +383,12 @@ function update(now) {
     // ── Обычный ход ─────────────────────────────────────
     if (growPending > 0) growPending--;
     else                 snake.pop();
+    // убираем одну клетку хвоста с анимацией, если нужно укоротиться
+    if (shrinkPending > 0 && snake.length > 1) {
+      cellAnims.push({ pos: snake[snake.length - 1], start: now });
+      snake.pop();
+      shrinkPending--;
+    }
   }
 }
 
@@ -429,43 +429,31 @@ function render(now) {
   if (saladPos) drawEll(saladPos[0], saladPos[1], 'rgb(160,50,220)');
   drawSnake();
 
-  if (shrinkAnim !== null) {
-    const el = now - shrinkAnim.start;
-    const cells = shrinkAnim.cells; // [ближний к новому хвосту, ..., старый конец]
-    const n = cells.length;
-    if (el >= n * CELL_DUR) {
-      shrinkAnim = null;
+  for (const anim of cellAnims) {
+    const cel = now - anim.start;
+    if (cel < 0 || cel >= CELL_DUR) continue;
+    let r, g, b, alpha;
+    if (cel < 60) {
+      r = 255; g = 255; b = 255; alpha = 1;               // белая вспышка
+    } else if (cel < 140) {
+      const t = (cel - 60) / 80;                          // белый → зелёный
+      r = Math.round(255 * (1 - t));
+      g = Math.round(255 * (1 - t) + 200 * t);
+      b = Math.round(255 * (1 - t));
+      alpha = 1;
     } else {
-      for (let i = 0; i < n; i++) {
-        // каждая клетка стартует строго после предыдущей
-        // i=n-1 — старый конец хвоста (delay=0), i=0 — ближний к новому хвосту (delay=(n-1)*CELL_DUR)
-        const delay = (n - 1 - i) * CELL_DUR;
-        const cel   = el - delay;
-        if (cel < 0 || cel >= CELL_DUR) continue;
-
-        let r, g, b, alpha;
-        if (cel < 60) {
-          r = 255; g = 255; b = 255; alpha = 1;           // белая вспышка
-        } else if (cel < 140) {
-          const t = (cel - 60) / 80;                      // белый → зелёный
-          r = Math.round(255 * (1 - t));
-          g = Math.round(255 * (1 - t) + 200 * t);
-          b = Math.round(255 * (1 - t));
-          alpha = 1;
-        } else {
-          r = 0; g = 200; b = 0;                          // зелёный → прозрачный
-          alpha = Math.max(0, 1 - (cel - 140) / 210);
-        }
-        if (alpha <= 0) continue;
-        const [cx, cy] = cells[i];
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        rRect(cx * CELL + 1, GAME_Y + cy * CELL + 1, CELL - 2, CELL - 2, 4);
-        ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fill();
-        ctx.restore();
-      }
+      r = 0; g = 200; b = 0;                              // зелёный → прозрачный
+      alpha = Math.max(0, 1 - (cel - 140) / 210);
     }
+    if (alpha <= 0) continue;
+    const [cx, cy] = anim.pos;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    rRect(cx * CELL + 1, GAME_Y + cy * CELL + 1, CELL - 2, CELL - 2, 4);
+    ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fill();
+    ctx.restore();
   }
+  cellAnims = cellAnims.filter(a => now - a.start < CELL_DUR);
 
   drawHUD(now);
 
