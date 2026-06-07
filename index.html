@@ -14,15 +14,47 @@ body {
   min-height: 100vh;
 }
 canvas { display: block; }
+#nameWrap { position: relative; display: inline-block; }
+#nameBox {
+  display: none; position: absolute;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: #1c1c1c; border: 1px solid #555; border-radius: 10px;
+  padding: 22px 28px; text-align: center; z-index: 10;
+  font-family: Arial, sans-serif; min-width: 220px;
+}
+#nameBox p { color: #bbb; font-size: 14px; margin-bottom: 12px; }
+#nameInput {
+  font-size: 26px; font-weight: bold; width: 88px; text-align: center;
+  background: #111; color: #fff; border: 2px solid #444; border-radius: 6px;
+  padding: 4px 8px; letter-spacing: 6px; text-transform: uppercase;
+  display: block; margin: 0 auto 14px;
+}
+#nameInput:focus { outline: none; border-color: #888; }
+.nBtn {
+  font-size: 14px; font-family: Arial, sans-serif;
+  border-radius: 6px; padding: 7px 18px; cursor: pointer; border: 1px solid;
+}
+#nameOk   { background: #1a3a1a; color: #fff; border-color: #3a7a3a; margin-right: 8px; }
+#nameSkip { background: #232323; color: #666; border-color: #3a3a3a; }
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<div id="nameWrap">
+  <canvas id="c"></canvas>
+  <div id="nameBox">
+    <p id="nameLabel"></p>
+    <input id="nameInput" maxlength="3" spellcheck="false" autocomplete="off" />
+    <div>
+      <button class="nBtn" id="nameOk">OK</button>
+      <button class="nBtn" id="nameSkip"></button>
+    </div>
+  </div>
+</div>
 <script>
 'use strict';
 
 // ── constants ─────────────────────────────────────────────
-const VERSION        = '1.11';
+const VERSION        = '1.12';
 const CELL           = 20;
 const COLS           = 30;
 const ROWS           = 25;
@@ -41,6 +73,11 @@ const STATUS_DUR     = 2500;
 const ORANGE_DUR     = 3000;
 const CELL_DUR       = 350;  // мс на одну клетку хвоста при анимации салата
 
+// ── JSONBin.io ─────────────────────────────────────────────
+const BIN_ID  = 'ВСТАВЬ_ID_БИНА';     // заменить!
+const BIN_KEY = 'ВСТАВЬ_MASTER_KEY';  // заменить!
+const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+
 // ── translations ──────────────────────────────────────────
 const T = {
   ru: {
@@ -55,6 +92,13 @@ const T = {
     ms:       'мс',
     status:   { apple: 'Восторг!', potato: 'Картошечка!', cake: 'Ой! Я съела нельзЮ..', salad: 'Разгрузочный день!' },
     stats:    { apple: 'Яблок', potato: 'Картошки', cake: 'Пирогов', salad: 'Салатов' },
+    lb:       'Рекорды',
+    lbEmpty:  '(пока пусто)',
+    lbLoad:   'загрузка...',
+    lbErr:    'недоступно',
+    enterName:'Введи инициалы (до 3 букв)',
+    skip:     'Пропустить',
+    noRank:   'Не попал в топ-100',
     rules: [
       { color: '#dc2828', name: 'Яблоко',   desc: '+1 очко, растёт' },
       { color: '#ffbe00', name: 'Картошка', desc: '+2 очка, замедляет на 3с' },
@@ -75,6 +119,13 @@ const T = {
     ms:       'ms',
     status:   { apple: 'Yummy!', potato: 'Potatoes!', cake: "Oops, shouldn't have..", salad: 'Diet day!' },
     stats:    { apple: 'Apples', potato: 'Potatoes', cake: 'Cakes', salad: 'Salads' },
+    lb:       'Records',
+    lbEmpty:  '(empty)',
+    lbLoad:   'loading...',
+    lbErr:    'unavailable',
+    enterName:'Enter initials (up to 3 chars)',
+    skip:     'Skip',
+    noRank:   'Not in top 100',
     rules: [
       { color: '#dc2828', name: 'Apple',   desc: '+1 pt, grows' },
       { color: '#ffbe00', name: 'Potato',  desc: '+2 pts, slows for 3s' },
@@ -88,9 +139,9 @@ const T = {
 const LB_W = 54, LB_H = 28, LB_GAP = 8;
 const LB_RU_X = WIN_W / 2 - LB_W - LB_GAP / 2;
 const LB_EN_X = WIN_W / 2 + LB_GAP / 2;
-// button Y is computed from centered block layout (4 rules, 2 notes — same for both langs)
-const _BLK_H  = 52 + 14 + LB_H + 16 + 1 + 16 + 4*34 + 10 + 2*22 + 16 + 1 + 14 + 24;
-const LB_BTN_Y = Math.round((WIN_H - _BLK_H) / 2) + 52 + 14;
+// button Y — two-column layout: title+gap+btns+gap+div+gap+MID(212)+gap+div+gap+prompt
+const _BLK_H  = 52 + 12 + LB_H + 12 + 1 + 14 + 212 + 14 + 1 + 12 + 24; // 382
+const LB_BTN_Y = Math.round((WIN_H - _BLK_H) / 2) + 52 + 12;
 
 // ── canvas ────────────────────────────────────────────────
 const canvas = document.getElementById('c');
@@ -107,6 +158,8 @@ let speed, targetSpeed, status, orangeEffectStart, lastTickMs, paused, pauseMs;
 let statApples, statPotatoes, statCakes, statSalads;
 let blinkOn = true, blinkLast = 0;
 let lang = 'ru';
+let leaderboard = [], lbStatus = 'loading';
+let playerRank = -1, playerName = '';
 
 // ── helpers ───────────────────────────────────────────────
 const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
@@ -119,8 +172,41 @@ function randomFood(occupied) {
   return [x, y];
 }
 
+// ── leaderboard API ──────────────────────────────────────
+async function fetchLeaderboard() {
+  lbStatus = 'loading';
+  try {
+    const r = await fetch(BIN_URL + '/latest', { headers: { 'X-Master-Key': BIN_KEY } });
+    if (!r.ok) throw new Error(r.status);
+    leaderboard = (await r.json()).record.scores || [];
+    lbStatus = 'ok';
+  } catch {
+    leaderboard = [];
+    lbStatus = 'error';
+  }
+}
+
+async function submitScore(name) {
+  const entry   = { name: name.toUpperCase().slice(0, 3), score, date: new Date().toISOString().slice(0, 10) };
+  const updated = [...leaderboard, entry].sort((a, b) => b.score - a.score).slice(0, 100);
+  const idx     = updated.indexOf(entry);
+  playerRank    = idx >= 0 ? idx + 1 : -1;
+  playerName    = entry.name;
+  try {
+    await fetch(BIN_URL, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': BIN_KEY },
+      body:    JSON.stringify({ scores: updated }),
+    });
+    leaderboard = updated;
+  } catch { /* offline — local only */ }
+}
+
+fetchLeaderboard();
+
 // ── input ─────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
+  if (state === 'entry') return; // handled by HTML input
   if (state === 'start') {
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); startGame(); }
     return;
@@ -148,6 +234,43 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ── name entry overlay ────────────────────────────────────
+const nameBox   = document.getElementById('nameBox');
+const nameLabel = document.getElementById('nameLabel');
+const nameInput = document.getElementById('nameInput');
+const nameOk    = document.getElementById('nameOk');
+const nameSkip  = document.getElementById('nameSkip');
+
+function showNameBox() {
+  const L = T[lang];
+  nameLabel.textContent = L.enterName;
+  nameSkip.textContent  = L.skip;
+  nameInput.value = '';
+  nameBox.style.display = 'block';
+  setTimeout(() => nameInput.focus(), 40);
+}
+function hideNameBox() { nameBox.style.display = 'none'; }
+
+async function finishEntry(skip) {
+  hideNameBox();
+  if (!skip && nameInput.value.trim().length > 0) {
+    await submitScore(nameInput.value.trim());
+  } else {
+    playerRank = -1;
+  }
+  state = 'gameover';
+}
+
+nameInput.addEventListener('keydown', async e => {
+  if (e.key === 'Enter')  { e.preventDefault(); finishEntry(false); }
+  if (e.key === 'Escape') { e.preventDefault(); finishEntry(true);  }
+});
+nameInput.addEventListener('input', () => {
+  nameInput.value = nameInput.value.replace(/[^a-zA-Zа-яА-ЯёЁ]/g, '').toUpperCase();
+});
+nameOk.addEventListener('click',   () => finishEntry(false));
+nameSkip.addEventListener('click',  () => finishEntry(true));
+
 canvas.addEventListener('click', e => {
   if (state !== 'start') return;
   const rect   = canvas.getBoundingClientRect();
@@ -170,6 +293,8 @@ function startGame() {
   cellAnims        = [];
   score            = 0;
   applesEaten      = 0;
+  playerRank       = -1;
+  playerName       = '';
   statApples       = 0;
   statPotatoes     = 0;
   statCakes        = 0;
@@ -383,7 +508,8 @@ function update(now) {
 
   // сама себя
   if (snake.some(s => eq(s, [hx, hy]))) {
-    state = 'gameover';
+    state = 'entry';
+    showNameBox();
     return;
   }
 
@@ -463,41 +589,25 @@ function render(now) {
     // solid dark background — no grid
     ctx.fillStyle = '#151515'; ctx.fillRect(0, 0, WIN_W, WIN_H);
 
-    const L   = T[lang];
-    const cx  = WIN_W / 2;
-    const rowH = 34, dotR = 7, noteH = 22;
+    const L  = T[lang];
+    const cx = WIN_W / 2;
 
-    // measure widest rule row to center the block
-    ctx.font = 'bold 14px Arial';
-    let maxRuleW = 0;
-    for (const { name, desc } of L.rules) {
-      ctx.font = 'bold 14px Arial';
-      const nw = ctx.measureText(name + ':').width;
-      ctx.font = '14px Arial';
-      const dw = ctx.measureText('  ' + desc).width;
-      maxRuleW = Math.max(maxRuleW, dotR * 2 + 10 + nw + dw);
-    }
-    const ruleBlockW = Math.min(maxRuleW + 40, WIN_W - 80);
-    const ruleBlockX = cx - ruleBlockW / 2;  // left edge of card
-    const dotX       = ruleBlockX + 20 + dotR;
+    // Column geometry
+    const LC_X = 16, LC_W = 300;
+    const RC_X = 324, RC_W = 260;
+    const DIV_X = LC_X + LC_W + 4;
 
-    // vertical layout — compute startY to center block
-    const titleH  = 52;
-    const btnH    = LB_H;
-    const divH    = 1;
-    const rulesH  = L.rules.length * rowH;
-    const notesH  = L.notes.length * noteH;
-    const promptH = 24;
-    const blockH  = titleH + 14 + btnH + 16 + divH + 16 + rulesH + 10 + notesH + 16 + divH + 14 + promptH;
-    const sy      = Math.round((WIN_H - blockH) / 2);  // top of block
-
+    // Centered vertical block
+    const TITLE_H = 52, MID_H = 212;
+    const blockH  = TITLE_H + 12 + LB_H + 12 + 1 + 14 + MID_H + 14 + 1 + 12 + 24;
+    const sy      = Math.round((WIN_H - blockH) / 2);
     let y = sy;
 
-    // title
+    // Title
     ctx.textBaseline = 'top'; ctx.textAlign = 'center';
     ctx.font = 'bold 44px Arial'; ctx.fillStyle = 'rgb(0,210,0)';
     ctx.fillText(L.title, cx, y);
-    y += titleH + 14;
+    y += TITLE_H + 12;
 
     // language buttons (centered)
     const drawLB = (x, label, active) => {
@@ -510,58 +620,107 @@ function render(now) {
     };
     drawLB(LB_RU_X, 'RU', lang === 'ru');
     drawLB(LB_EN_X, 'EN', lang === 'en');
-    y += btnH + 16;
+    y += LB_H + 12;
 
-    // divider
+    // Top divider
     ctx.strokeStyle = 'rgb(55,55,55)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(ruleBlockX, y); ctx.lineTo(ruleBlockX + ruleBlockW, y); ctx.stroke();
-    y += divH + 16;
+    ctx.beginPath(); ctx.moveTo(LC_X, y); ctx.lineTo(RC_X + RC_W, y); ctx.stroke();
+    y += 1 + 14;
 
-    // food rules card background
-    const cardY = y - 8;
-    const cardH = rulesH + 16;
-    rRect(ruleBlockX, cardY, ruleBlockW, cardH, 8);
+    const midY = y;
+
+    // ── Left col: food rules ──────────────────────────────
+    const dotR  = 7, rowH = 32, noteH = 20;
+    const dotX  = LC_X + 16 + dotR;
+    const textX = dotX + dotR + 8;
+
+    rRect(LC_X + 4, midY - 4, LC_W - 6, L.rules.length * rowH + 16, 7);
     ctx.fillStyle = 'rgb(22,22,22)'; ctx.fill();
-    ctx.strokeStyle = 'rgb(70,70,70)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = 'rgb(65,65,65)'; ctx.lineWidth = 1; ctx.stroke();
 
-    // food rules rows
     for (let i = 0; i < L.rules.length; i++) {
       const { color, name, desc } = L.rules[i];
-      const ry = y + i * rowH + rowH / 2;
+      const ry = midY + i * rowH + rowH / 2;
       ctx.beginPath(); ctx.arc(dotX, ry, dotR, 0, Math.PI * 2);
       ctx.fillStyle = color; ctx.fill();
-      const textX = dotX + dotR + 10;
       ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-      ctx.font = 'bold 14px Arial'; ctx.fillStyle = '#e0e0e0';
+      ctx.font = 'bold 13px Arial'; ctx.fillStyle = '#dedede';
       const nameStr = name + ':';
       ctx.fillText(nameStr, textX, ry);
       const nw = ctx.measureText(nameStr).width;
-      ctx.font = '14px Arial'; ctx.fillStyle = 'rgb(120,130,120)';
+      ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(110,110,110)';
       ctx.fillText('  ' + desc, textX + nw, ry);
     }
-    y += rulesH + 10;
 
-    // notes
-    ctx.font = '12px Arial'; ctx.fillStyle = 'rgb(100,100,100)';
-    ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    // Notes
+    const notesY0 = midY + L.rules.length * rowH + 10;
+    ctx.font = '11px Arial'; ctx.fillStyle = 'rgb(85,85,85)';
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
     for (let i = 0; i < L.notes.length; i++) {
-      ctx.fillText('• ' + L.notes[i], cx, y + i * noteH + noteH / 2);
+      ctx.fillText('• ' + L.notes[i], LC_X + 8, notesY0 + i * noteH + noteH / 2);
     }
-    y += notesH + 16;
 
-    // divider
+    // Vertical divider
+    ctx.strokeStyle = 'rgb(45,45,45)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(DIV_X, midY - 6); ctx.lineTo(DIV_X, midY + MID_H); ctx.stroke();
+
+    // ── Right col: leaderboard ────────────────────────────
+    const rcCx = RC_X + RC_W / 2;
+    ctx.font = 'bold 14px Arial'; ctx.fillStyle = 'rgb(190,190,190)';
+    ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+    ctx.fillText(L.lb, rcCx, midY);
     ctx.strokeStyle = 'rgb(55,55,55)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(ruleBlockX, y); ctx.lineTo(ruleBlockX + ruleBlockW, y); ctx.stroke();
-    y += divH + 14;
+    ctx.beginPath(); ctx.moveTo(RC_X + 6, midY + 20); ctx.lineTo(RC_X + RC_W - 6, midY + 20); ctx.stroke();
 
-    // start prompt
+    const entryY0 = midY + 28, entryH = 17;
+    const top10   = leaderboard.slice(0, 10);
+    if (lbStatus === 'loading') {
+      ctx.font = '12px Arial'; ctx.fillStyle = 'rgb(70,70,70)';
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+      ctx.fillText(L.lbLoad, rcCx, entryY0 + 50);
+    } else if (lbStatus === 'error') {
+      ctx.font = '12px Arial'; ctx.fillStyle = 'rgb(100,60,60)';
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+      ctx.fillText(L.lbErr, rcCx, entryY0 + 50);
+    } else if (top10.length === 0) {
+      ctx.font = '12px Arial'; ctx.fillStyle = 'rgb(70,70,70)';
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+      ctx.fillText(L.lbEmpty, rcCx, entryY0 + 50);
+    } else {
+      for (let i = 0; i < top10.length; i++) {
+        const { name: nm, score: sc } = top10[i];
+        const ey   = entryY0 + i * entryH + entryH / 2;
+        const isMe = playerRank === i + 1 && playerName === nm;
+        if (isMe) {
+          rRect(RC_X + 3, ey - entryH / 2 + 1, RC_W - 6, entryH - 1, 3);
+          ctx.fillStyle = 'rgb(0,70,0)'; ctx.fill();
+        }
+        ctx.font = isMe ? 'bold 12px Arial' : '12px Arial';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = isMe ? 'rgb(140,230,140)' : 'rgb(90,90,90)';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${i + 1}.`, RC_X + 26, ey);
+        ctx.fillStyle = isMe ? '#fff' : 'rgb(200,200,200)';
+        ctx.textAlign = 'left';
+        ctx.fillText(nm, RC_X + 32, ey);
+        ctx.fillStyle = isMe ? 'rgb(140,230,140)' : 'rgb(120,120,120)';
+        ctx.textAlign = 'right';
+        ctx.fillText(sc, RC_X + RC_W - 6, ey);
+      }
+    }
+
+    // ── Bottom ────────────────────────────────────────────
+    y = midY + MID_H + 14;
+    ctx.strokeStyle = 'rgb(55,55,55)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(LC_X, y); ctx.lineTo(RC_X + RC_W, y); ctx.stroke();
+    y += 1 + 12;
+
     if (blinkOn) {
       ctx.font = 'bold 18px Arial'; ctx.fillStyle = '#e8e8e8';
       ctx.textBaseline = 'top'; ctx.textAlign = 'center';
       ctx.fillText(L.start, cx, y);
     }
 
-    // version bottom-right
     ctx.font = '11px Arial'; ctx.fillStyle = 'rgb(65,65,65)';
     ctx.textBaseline = 'bottom'; ctx.textAlign = 'right';
     ctx.fillText('v' + VERSION, WIN_W - 8, WIN_H - 6);
@@ -569,7 +728,7 @@ function render(now) {
     return;
   }
 
-  if (state === 'gameover') {
+  if (state === 'gameover' || state === 'entry') {
     const L  = T[lang];
     const cx = WIN_W / 2;
 
@@ -626,10 +785,27 @@ function render(now) {
       ctx.fillText(label, lx + dotR * 2 + 8, iy);
     }
 
-    // hint
-    ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(80,90,80)';
-    ctx.textBaseline = 'top'; ctx.textAlign = 'center';
-    ctx.fillText(L.restart, cx, gridY + gridH + 32);
+    // rank
+    const rankY = gridY + gridH + 14;
+    if (state === 'gameover' && playerRank > 0) {
+      ctx.font = 'bold 14px Arial'; ctx.fillStyle = 'rgb(80,200,80)';
+      ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+      const rankTxt = lang === 'ru'
+        ? `Ты #${playerRank} в таблице рекордов!`
+        : `You're #${playerRank} on the leaderboard!`;
+      ctx.fillText(rankTxt, cx, rankY);
+    } else if (state === 'gameover' && playerRank === -1 && playerName === '') {
+      ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(80,80,80)';
+      ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+      ctx.fillText(L.noRank, cx, rankY);
+    }
+
+    // hint — only after name entry
+    if (state === 'gameover') {
+      ctx.font = '13px Arial'; ctx.fillStyle = 'rgb(75,85,75)';
+      ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+      ctx.fillText(L.restart, cx, rankY + 26);
+    }
 
     return;
   }
