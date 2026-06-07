@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Змейка</title>
+<title>Змейка++</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -22,7 +22,7 @@ canvas { display: block; }
 'use strict';
 
 // ── constants ─────────────────────────────────────────────
-const VERSION        = '1.07';
+const VERSION        = '1.08';
 const CELL           = 20;
 const COLS           = 30;
 const ROWS           = 25;
@@ -34,7 +34,9 @@ const WIN_W          = FIELD_W;       // 600
 const WIN_H          = PANEL_TOP + FIELD_H + PANEL_BOTTOM; // 584
 const GAME_Y         = PANEL_TOP;     // 52
 const SPEED_INIT     = 2.5;
-const SPEED_MAX      = 22;
+const SPEED_MAX      = 7.3;  // SPEED_INIT + 24 * SPEED_STEP (display 25)
+const SPEED_STEP     = 0.2;
+const SPEED_LERP     = 3;   // ед/с — скорость плавного нарастания
 const STATUS_DUR     = 2500;
 const ORANGE_DUR     = 3000;
 
@@ -48,7 +50,7 @@ const ctx = canvas.getContext('2d');
 let state = 'start'; // 'start' | 'playing' | 'gameover'
 let snake, direction, nextDir, food, orangePos, cakes;
 let score, applesEaten, growPending, nextOrangeAt, nextCakeAt;
-let speed, status, orangeEffectStart, lastTickMs, paused, pauseMs;
+let speed, targetSpeed, status, orangeEffectStart, lastTickMs, paused, pauseMs;
 let blinkOn = true, blinkLast = 0;
 
 // ── helpers ───────────────────────────────────────────────
@@ -104,6 +106,7 @@ function startGame() {
   nextOrangeAt     = ri(2, 4);
   nextCakeAt       = ri(5, 9);
   speed            = SPEED_INIT;
+  targetSpeed      = SPEED_INIT;
   status           = null;
   orangeEffectStart = null;
   lastTickMs       = performance.now();
@@ -226,8 +229,9 @@ function drawHUD(now) {
   ctx.fillText(sTxt, 19, by + bh / 2);
 
   // speed box (right)
+  const dispSpd = s => Math.max(1, Math.min(25, Math.round(1 + (s - SPEED_INIT) / SPEED_STEP)));
   ctx.font = '13px Arial';
-  const spTxt = `Скорость:  ${eff.toFixed(1)} fps`;
+  const spTxt = `Скорость:  ${dispSpd(eff)}`;
   const bw2   = ctx.measureText(spTxt).width + 22;
   const bx2   = WIN_W - bw2 - 8;
   drawBox(bx2, by, bw2, bh);
@@ -266,7 +270,7 @@ function drawHUD(now) {
   ctx.beginPath(); ctx.moveTo(0, GAME_Y + FIELD_H); ctx.lineTo(WIN_W, GAME_Y + FIELD_H); ctx.stroke();
 
   ctx.font = '13px Arial';
-  const aTxt = `Змейка  •  Навайбкодил Лёша Карпич 5-б  •  версия ${VERSION}`;
+  const aTxt = `Змейка++  •  Навайбкодил Лёша Карпич 5-б  •  версия ${VERSION}`;
   const aW   = ctx.measureText(aTxt).width + 20;
   const aH   = PANEL_BOTTOM - 8;
   const aX   = (WIN_W - aW) / 2;
@@ -317,7 +321,7 @@ function update(now) {
     score++;
     applesEaten++;
     food  = randomFood([...snake, ...(orangePos ? [orangePos] : []), ...cakes]);
-    speed = Math.min(SPEED_INIT + score * 0.3, SPEED_MAX);
+    targetSpeed = Math.min(targetSpeed + SPEED_STEP, SPEED_MAX);
     status = { start: now, text: 'Восторг!', color: [220, 40, 40] };
     if (applesEaten === nextOrangeAt) {
       orangePos    = randomFood([...snake, food, ...cakes]);
@@ -334,6 +338,7 @@ function update(now) {
     score++;
     orangePos         = null;
     orangeEffectStart = now;
+    targetSpeed = Math.min(targetSpeed + SPEED_STEP, SPEED_MAX);
     status = { start: now, text: 'Перевариваю!', color: [210, 150, 0] };
     // хвост не удаляем → рост на 1
 
@@ -342,6 +347,7 @@ function update(now) {
     cakes       = cakes.filter(c => !eq(c, [hx, hy]));
     score      *= 2;
     growPending += Math.max(0, preLen - 1); // вырасти до 2×preLen
+    targetSpeed = Math.min(targetSpeed + SPEED_STEP, SPEED_MAX);
     status = { start: now, text: 'Ой! Я съела нельзЮ..', color: [0, 190, 235] };
 
   } else {
@@ -359,7 +365,7 @@ function render(now) {
     drawGrid();
     ctx.textBaseline = 'top'; ctx.textAlign = 'center';
     ctx.font = 'bold 48px Arial'; ctx.fillStyle = 'rgb(0,200,0)';
-    ctx.fillText('ЗМЕЙКА', WIN_W / 2, WIN_H / 2 - 70);
+    ctx.fillText('ЗМЕЙКА++', WIN_W / 2, WIN_H / 2 - 70);
     if (blinkOn) {
       ctx.font = 'bold 22px Arial'; ctx.fillStyle = '#fff';
       ctx.fillText('Нажмите ПРОБЕЛ для начала', WIN_W / 2, WIN_H / 2 + 20);
@@ -402,7 +408,15 @@ function render(now) {
 }
 
 // ── main loop ─────────────────────────────────────────────
+let prevLoopTs = 0;
 function loop(ts) {
+  if (state === 'playing' && !paused && prevLoopTs > 0) {
+    const dt   = (ts - prevLoopTs) / 1000;
+    const diff = targetSpeed - speed;
+    const step = SPEED_LERP * dt;
+    speed = Math.abs(diff) <= step ? targetSpeed : speed + Math.sign(diff) * step;
+  }
+  prevLoopTs = ts;
   update(ts);
   render(ts);
   requestAnimationFrame(loop);
